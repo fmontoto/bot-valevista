@@ -3,12 +3,14 @@
 import logging
 import os
 
-from utils import normalize_rut
+from utils import digito_verificador, normalize_rut
+from web import Web
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            level=logging.INFO)
+                    level=logging.INFO,
+                    filename="log/bot.log")
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ TOKEN = os.getenv("BOT_TOKEN", None)
 def start(bot, update):
     name = update.message.from_user.first_name or update.message.from_user.username
     msg = ("Hola %s, soy el bot de los vale vista pagados por la UChile. Actualmente estoy en construcción.\n"
-	   "Para consultar si tienes vales vista pendientes en el banco, enviame tu rut en otro mensaje: <12.345.678=9>")
+	   "Para consultar si tienes vales vista pendientes en el banco, enviame tu rut en un mensaje: <12.345.678=9>")
     update.message.reply_text(msg % name)
 
 def help(bot, update):
@@ -26,6 +28,7 @@ def help(bot, update):
 			       ", cuando tenga tiempo quizas te responda, o quizás no, a mi me dejo a medio terminar =("))
 
 def msg(bot, update):
+    logger.info("MSG:[%s]", update.message.text)
     is_rut = normalize_rut(update.message.text)
     if not is_rut:
         echo(bot, update)
@@ -36,8 +39,13 @@ def echo(bot, update):
     update.message.reply_text(update.message.text)
 
 def rut(bot, update, rut):
-    valesVista = get_valesvista(rut)
-    update.message.reply_text(
+    try:
+        response = Web(rut, digito_verificador(rut)).get_data()
+    except Exception as e:
+        logger.error(e)
+        update.message.reply_text("ups, un error ha ocurrido =( lo solucionaremos a la brevedad (?)")
+    else:
+        update.message.reply_text('\n'.join(response))
 
 def error(bot, update, error):
     logger.warn("Update %s caused error %s" % (update, error))
