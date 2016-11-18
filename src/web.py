@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ParsingException(Exception):
     def __init__(self, public_message):
         super(ParsingException, self).__init__(public_message)
+        self.public_message = public_message
 
 
 class Web(object):
@@ -41,7 +42,7 @@ class Web(object):
                                                                 r.reason))
             raise ParsingException("Error de conexion, (probablemente) estamos trabajando para solucionarlo.")
 
-        self.raw_page = r.text.encode('utf-8').strip()
+        self.raw_page = r.text
 
     """ Testing purposes."""
     def load_page(self, path):

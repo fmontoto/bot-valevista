@@ -6,7 +6,7 @@ import os
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from utils import digito_verificador, normalize_rut
-from web import Web
+from web import ParsingException, Web
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -42,6 +42,8 @@ def echo(bot, update):
 def rut(bot, update, rut):
     try:
         response = Web(rut, digito_verificador(rut)).get_data()
+    except ParsingException as e:
+        update.message.reply_text(e.public_message)
     except Exception as e:
         logger.error(e)
         update.message.reply_text("ups, un error ha ocurrido =( lo solucionaremos a la brevedad (?)")
