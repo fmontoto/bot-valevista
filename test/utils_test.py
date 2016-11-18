@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from utils import remove_digito_verificador_puntos, digito_verificador
+from src.utils import remove_digito_verificador_puntos, digito_verificador
 
 
 class TestRut(TestCase):

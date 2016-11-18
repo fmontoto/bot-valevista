@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-import web
+from src import web
 
 
 class TestRut(TestCase):
