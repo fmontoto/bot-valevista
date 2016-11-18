@@ -1,6 +1,5 @@
 import codecs
 import logging
-import os
 import requests
 
 import bs4
@@ -46,7 +45,7 @@ class Web(object):
 
     """ Testing purposes."""
     def load_page(self, path):
-        with codecs.open(os.path.join(os.path.dirname(__file__), path), "r", encoding='utf-8', errors='ignore') as f:
+        with codecs.open(path, "r", encoding='utf-8', errors='ignore') as f:
             self.raw_page = f.read()
 
 
