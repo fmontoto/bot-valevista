@@ -5,8 +5,8 @@ import os
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-from src.utils import digito_verificador, normalize_rut
-from src.web import Web
+from utils import digito_verificador, normalize_rut
+from web import Web
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
