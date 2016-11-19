@@ -11,7 +11,8 @@ from web import ParsingException, Web
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO,
-                    filename="log/bot.log")
+                    filename="log/bot.log",
+                    filemode="a+")
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +42,14 @@ def echo(bot, update):
 
 def rut(bot, update, rut):
     try:
-        response = Web(rut, digito_verificador(rut)).get_results()
+        response = Web(rut, digito_verificador(rut)).get_parsed_results()
     except ParsingException as e:
         update.message.reply_text(e.public_message)
     except Exception as e:
         logger.error(e)
         update.message.reply_text("ups, un error ha ocurrido =( lo solucionaremos a la brevedad (?)")
     else:
-        update.message.reply_text('\n'.join(response))
+        update.message.reply_text(response)
 
 def error(bot, update, error):
     logger.warn("Update %s caused error %s" % (update, error))

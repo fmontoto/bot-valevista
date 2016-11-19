@@ -1,4 +1,5 @@
 import codecs
+from collections import OrderedDict
 import logging
 import requests
 
@@ -28,8 +29,25 @@ class Web(object):
         self.url = self.URL % (self.rut, self.digito)
 
     def get_results(self):
-        self.download()
+        # This if is only for testing purposes, if the page was loaded do not download it.
+        if not self.raw_page:
+            self.download()
         return self.parse()
+
+    def get_parsed_results(self):
+        results = self.get_results()
+        if self.page_type != self.EXPECTED:
+            return "".join(results)
+        parsed_result = []
+
+        for r in results:
+            this_result = []
+            for k, v in r.items():
+                this_result.append("%s:%s," % (k.strip(), v.strip()))
+            parsed_result.append(" ".join(this_result).rstrip(","))
+        return "\n".join(parsed_result)
+
+
 
     def download(self):
         try:
@@ -86,11 +104,11 @@ class Web(object):
         resultados = []
         for i in range(1, len(table) - 1):
             data = table[i].find_all('td')
-            resultados.append({ 'Fecha de Pago' : data[0].text.strip('\n')
-                              , 'Medio de Pago' : data[1].text.strip('\n')
-                              , 'Oficina/Banco' : data[2].text.strip('\n')
-                              , 'Estado' : data[3].text.strip('\n')
-                              })
+            resultados.append(OrderedDict([ ('Fecha de Pago', data[0].text.strip('\n'))
+                                          , ('Medio de Pago', data[1].text.strip('\n'))
+                                          , ('Oficina/Banco', data[2].text.strip('\n'))
+                                          , ('Estado', data[3].text.strip('\n'))
+                                          ]))
         return resultados
 
     def _parse_clientes(self, soup):
