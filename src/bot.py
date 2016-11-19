@@ -41,7 +41,7 @@ def echo(bot, update):
 
 def rut(bot, update, rut):
     try:
-        response = Web(rut, digito_verificador(rut)).get_data()
+        response = Web(rut, digito_verificador(rut)).get_results()
     except ParsingException as e:
         update.message.reply_text(e.public_message)
     except Exception as e:
