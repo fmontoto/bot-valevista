@@ -1,11 +1,16 @@
 import datetime
 
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from . import models
-from .models import CachedResult, User
+from .models import Base, CachedResult, User
 
-DBSession = sessionmaker(bind=models.engine)
+
+engine = create_engine('sqlite:///db.sqlite')
+
+Base.metadata.create_all(engine)
+DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 class DBException(Exception):
@@ -19,7 +24,7 @@ def get_user_id(telegram_id, create=True):
     :param create: If true and the telegram id does not exists, creates a new user
     :return: the id of the user.
     """
-    user = session.query(User).filter_by(telegram_id==telegram_id).first()
+    user = session.query(User).filter_by(telegram_id=telegram_id).first()
     if not user:
         if not create:
             raise ValueError("User does not exists")

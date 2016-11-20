@@ -3,6 +3,8 @@ from collections import OrderedDict
 import logging
 import requests
 
+from .model_interface import cached_result, update_cached_result
+
 import bs4
 
 logger = logging.getLogger(__name__)
@@ -35,8 +37,10 @@ class Web(object):
             self.download()
         return self.parse()
 
-    def get_parsed_results(self):
-        cached_results = cached_results(self.rut, s)
+    def get_parsed_results(self, telegram_user_id):
+        result = cached_result(self.rut, telegram_user_id)
+        if result:
+            return result
         results = self.get_results()
         if self.page_type != self.EXPECTED:
             return "".join(results)
@@ -47,9 +51,13 @@ class Web(object):
             for k, v in r.items():
                 this_result.append("%s:%s," % (k.strip(), v.strip()))
             parsed_result.append(" ".join(this_result).rstrip(","))
-        return "\n\n".join(parsed_result)
-
-
+        result = "\n\n".join(parsed_result)
+        try:
+            update_cached_result(self.rut, telegram_user_id, result)
+        except Exception as e:
+            logger.error(e)
+        finally:
+            return result
 
     def download(self):
         try:
