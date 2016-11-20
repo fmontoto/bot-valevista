@@ -51,6 +51,9 @@ def rut(bot, update, rut):
     else:
         update.message.reply_text(response)
 
+def debug(bot, update):
+    logger.info("Debug: %s, %s" % (bot, update))
+
 def error(bot, update, error):
     logger.warn("Update %s caused error %s" % (update, error))
 
@@ -60,6 +63,7 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("debug", debug))
     dp.add_handler(CommandHandler("help", help))
 
     dp.add_handler(MessageHandler(Filters.text, msg))

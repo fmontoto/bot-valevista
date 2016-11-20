@@ -20,6 +20,7 @@ class Web(object):
     EXPECTED = 1
     CLIENTE = 2
     NO_PAGOS = 3
+    INTENTE_NUEVAMENTE = 4
 
     def __init__(self, rut, digito):
         self.rut = rut;
@@ -35,6 +36,7 @@ class Web(object):
         return self.parse()
 
     def get_parsed_results(self):
+        cached_results = cached_results(self.rut, s)
         results = self.get_results()
         if self.page_type != self.EXPECTED:
             return "".join(results)
@@ -45,7 +47,7 @@ class Web(object):
             for k, v in r.items():
                 this_result.append("%s:%s," % (k.strip(), v.strip()))
             parsed_result.append(" ".join(this_result).rstrip(","))
-        return "\n".join(parsed_result)
+        return "\n\n".join(parsed_result)
 
 
 
@@ -94,6 +96,14 @@ class Web(object):
             return self.results
         except Exception as e:
             pass
+
+        try:
+            self.results = self._parse_error_intente_nuevamente(soup)
+            self.page_type = self.INTENTE_NUEVAMENTE
+            logger.info("Parseada[%s]", self.page_type)
+            return self.results
+        except Exception as e:
+            pass
         logger.error("Error parsing, no se pudo parsear la pagina [%s]: %s", self.url, self.raw_page)
         raise ParsingException("Nadie ha escrito un parser para esta pagina aun :( reportalo en github!")
 
@@ -121,9 +131,10 @@ class Web(object):
             raise ParsingException("Probablemente no es una pagina sin pagos")
         return [("Actualmente no registras pagos a tu favor.")]
 
-
-
-
-
+    def _parse_error_intente_nuevamente(self, soup):
+        if "Por ahora no podemos atenderle." not in self.raw_page:
+            raise ParsingException ("Probablemente no es una de error intente nuevamente")
+        return [("La pagina del banco tiene un error y dice que intentes nuevamente. "
+                 "Intenta nuevamente en unas horas")]
 
 

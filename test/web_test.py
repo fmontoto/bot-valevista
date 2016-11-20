@@ -8,6 +8,7 @@ class TestRut(TestCase):
         self.t = web.Web
         self.pages = [ ("test/test_pages/pagado_rendido.html", self.t.EXPECTED)
                      , ("test/test_pages/cliente.html", self.t.CLIENTE)
+                     , ("test/test_pages/Error.htm", self.t.INTENTE_NUEVAMENTE)
                      , ("test/test_pages/no_pagos.html", self.t.NO_PAGOS)]
 
     def tearDown(self):
