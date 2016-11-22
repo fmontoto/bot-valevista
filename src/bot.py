@@ -55,7 +55,7 @@ def set_rut(bot, update):
 
 def get_by_rut(bot, update):
     rut_ = get_user_rut(update.message.from_user.id)
-    if normalize_rut(rut_):
+    if rut_:
         return rut(bot, update, rut_)
     update.message.reply_text("No hay un rut almacenado, utiliza '/set <RUT>' para almacenarlo.")
 
