@@ -10,6 +10,7 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer, unique=True)
+    rut = Column(String(length=9))
 
     def __repr__(self):
         return "<User(id='%s', telegram_id='%s')>" % (

@@ -18,12 +18,7 @@ class DBException(Exception):
         super(DBException, self).__init__(public_message)
         self.public_message = public_message
 
-def get_user_id(telegram_id, create=True):
-    """
-    :param telegram_id: telegram id of the user to get.
-    :param create: If true and the telegram id does not exists, creates a new user
-    :return: the id of the user.
-    """
+def _get_user(telegram_id, create=True):
     user = session.query(User).filter_by(telegram_id=telegram_id).first()
     if not user:
         if not create:
@@ -31,7 +26,15 @@ def get_user_id(telegram_id, create=True):
         user = User(telegram_id=telegram_id)
         session.add(user)
         session.commit()
-    return user.id
+    return user
+
+def get_user_id(telegram_id, create=True):
+    """
+    :param telegram_id: telegram id of the user to get.
+    :param create: If true and the telegram id does not exists, creates a new user
+    :return: the id of the user.
+    """
+    return _get_user(telegram_id, create).id
 
 def cached_result(user_id, rut):
     result = session.query(CachedResult).filter_by(user_id=user_id, rut=rut).all()
@@ -48,3 +51,16 @@ def update_cached_result(user_id, rut, result):
         return
     c_result[0].result = result
     session.commit()
+
+def set_user_rut(telegram_id, rut):
+    user = _get_user(telegram_id, True)
+    if user.rut == rut:
+        return
+    user.rut = rut
+    session.commit()
+
+def get_user_rut(telegram_id):
+    user = _get_user(telegram_id, True)
+    if user.rut:
+        return user.rut
+    return None

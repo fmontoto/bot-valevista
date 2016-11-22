@@ -5,8 +5,9 @@ import os
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-from utils import digito_verificador, normalize_rut
-from web import ParsingException, Web
+from .utils import digito_verificador, normalize_rut
+from .web import ParsingException, Web
+from .model_interface import get_user_rut, set_user_rut
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -40,9 +41,27 @@ def msg(bot, update):
 def echo(bot, update):
     update.message.reply_text(update.message.text)
 
+def set_rut(bot, update):
+    spl = update.message.text.split(' ')
+    if len(spl) < 2:
+        update.message.reply_text("Especifica el rut para poder guardarlo.")
+    rut = normalize_rut(spl[1])
+
+    if not normalize_rut(spl[1]):
+        update.message.reply_text("Rut no valido.")
+        return
+    set_user_rut(update.message.from_user.id, normalize_rut(spl[1]))
+    update.message.reply_text("Rut:%s-%s guardado correctamente" % (rut, digito_verificador(rut)))
+
+def get_by_rut(bot, update):
+    rut = get_user_rut(update.message.from_user.id)
+    if normalize_rut(rut):
+        return rut(bot, update, rut)
+    update.message.reply_text("No hay un rut almacenado, utiliza '/set <RUT>' para almacenarlo.")
+
 def rut(bot, update, rut):
     try:
-        response = Web(rut, digito_verificador(rut)).get_parsed_results(update.message.form.id)
+        response = Web(rut, digito_verificador(rut)).get_parsed_results(update.message.from_user.id)
     except ParsingException as e:
         update.message.reply_text(e.public_message)
     except Exception as e:
@@ -63,6 +82,8 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("set", set_rut))
+    dp.add_handler(CommandHandler("get", get_by_rut))
     dp.add_handler(CommandHandler("debug", debug))
     dp.add_handler(CommandHandler("help", help))
 

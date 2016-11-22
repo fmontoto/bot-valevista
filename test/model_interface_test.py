@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src import models, model_interface
-from src.model_interface import get_user_id, cached_result, update_cached_result
+from src.model_interface import get_user_id, cached_result, update_cached_result, set_user_rut, get_user_rut
 
 
 class TestModelInterface(TestCase):
@@ -35,3 +35,10 @@ class TestModelInterface(TestCase):
         self.assertEqual(result, cached_result(user_id, rut))
         update_cached_result(user_id, rut, result2)
         self.assertEqual(result2, cached_result(user_id, rut))
+
+    def testRutSetAndGet(self):
+        self.assertIsNone(get_user_rut(32))
+        set_user_rut(32, "12345678")
+        self.assertEqual("12345678", get_user_rut(32))
+        set_user_rut(32, "12345679")
+        self.assertEqual("12345679", get_user_rut(32))
