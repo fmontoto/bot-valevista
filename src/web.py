@@ -144,5 +144,3 @@ class Web(object):
             raise ParsingException ("Probablemente no es una de error intente nuevamente")
         return [("La pagina del banco tiene un error y dice que intentes nuevamente. "
                  "Intenta nuevamente en unas horas")]
-
-

@@ -33,17 +33,18 @@ def get_user_id(telegram_id, create=True):
         session.commit()
     return user.id
 
-def cached_result(user, rut):
-    result = session.query(CachedResult).filter_by(user_id=user.id, rut=rut)
-    if not result or result.retrieved < (datetime.datetime.now() - datetime.timedelta(hours=2)):
+def cached_result(user_id, rut):
+    result = session.query(CachedResult).filter_by(user_id=user_id, rut=rut).all()
+    if not result or result[0].retrieved < (datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
         return None
-    return result.result
+    return result[0].result
 
-def update_cached_result(user, rut, result):
-    c_result = session.query(CachedResult).filter_by(user_id=user.id, rut=rut)
+def update_cached_result(user_id, rut, result):
+    c_result = session.query(CachedResult).filter_by(user_id=user_id, rut=rut).all()
     if not c_result:
-        c_result = CachedResult(rut=rut, user_id=user.id, result=result)
+        c_result = CachedResult(rut=rut, user_id=user_id, result=result)
         session.add(c_result)
         session.commit()
-    c_result.result = result
+        return
+    c_result[0].result = result
     session.commit()

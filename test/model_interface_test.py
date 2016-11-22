@@ -7,7 +7,6 @@ from src import models, model_interface
 from src.model_interface import get_user_id, cached_result, update_cached_result
 
 
-
 class TestModelInterface(TestCase):
 
     def setUp(self):
@@ -25,3 +24,14 @@ class TestModelInterface(TestCase):
         new_id = get_user_id(2342, True)
         self.assertEqual(new_id, get_user_id(2342, False))
         self.assertNotEqual(new_id, get_user_id(2351, True))
+
+    def testCachedResult(self):
+        rut = "12345634"
+        result = "stored_result"
+        result2 = "stored_result2"
+        user_id = get_user_id(9, True)
+        self.assertIsNone(cached_result(user_id, rut))
+        update_cached_result(user_id, rut, result)
+        self.assertEqual(result, cached_result(user_id, rut))
+        update_cached_result(user_id, rut, result2)
+        self.assertEqual(result2, cached_result(user_id, rut))
