@@ -5,9 +5,9 @@ import os
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-from .utils import digito_verificador, normalize_rut
-from .web import ParsingException, Web
-from .model_interface import get_user_rut, set_user_rut
+from src.utils import digito_verificador, normalize_rut
+from src.web import ParsingException, Web
+from src.model_interface import get_user_rut, set_user_rut
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -22,13 +22,19 @@ TOKEN = os.getenv("BOT_TOKEN", None)
 def start(bot, update):
     name = update.message.from_user.first_name or update.message.from_user.username
     msg = ("Hola %s, soy el bot de los vale vista pagados por la UChile. Actualmente estoy en construcción.\n"
-	   "Para consultar si tienes vales vista pendientes en el banco, enviame tu rut en un mensaje: <12.345.678=9>")
+	       "Para consultar si tienes vales vista pendientes en el banco, enviame el rut a consultar en un mensaje, "
+           "por ejemplo: 12.345.678-9.\n"
+           "Si quieres que recuerde tu rut para consultarlo recurrentemente, envia: /set TU_RUT. "
+           "Luego consultalo enviando /get.")
     update.message.reply_text(msg % name)
 
 def help(bot, update):
-    update.message.reply_text(("Estoy para ayudarte, si no sabes como utilizar este bot, envia /start. "
-			       "Si tienes comentarios/sugerencias/quejas escribele a mi creador: fmontotomonroy@gmail.com"
-			       ", cuando tenga tiempo quizas te responda, o quizás no, a mi me dejo a medio terminar =("))
+    update.message.reply_text(("Estoy para ayudarte, si no sabes como utilizar o para que sirve este bot, "
+                               "envia /start.\n"
+                               "Si tienes comentarios/sugerencias/quejas abre un issue en el github del proyecto: "
+                               "https://https://github.com/fmontoto/bot-valevista, si estas de suerte alguien se "
+                               "puede apiadar y ayudarte. De lo contrario puedes enviar un Pull Request con lo que "
+                               "solucione el problema o con una nueva funcionalidad."))
 
 def msg(bot, update):
     logger.info("MSG:[%s]", update.message.text)
