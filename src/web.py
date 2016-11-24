@@ -25,7 +25,7 @@ class Web(object):
     INTENTE_NUEVAMENTE = 4
 
     def __init__(self, rut, digito):
-        self.rut = rut;
+        self.rut = rut
         self.digito = digito
         self.raw_page = ""
         self.results = None
@@ -40,18 +40,21 @@ class Web(object):
     def get_parsed_results(self, telegram_user_id):
         result = cached_result(self.rut, telegram_user_id)
         if result:
+            logger.info("Using cache results.")
             return result
+        logger.info("Querying the bank page")
         results = self.get_results()
         if self.page_type != self.EXPECTED:
-            return "".join(results)
-        parsed_result = []
+            result = "".join(results)
+        else:
+            parsed_result = []
+            for r in results:
+                this_result = []
+                for k, v in r.items():
+                    this_result.append("%s: %s\n" % (k.strip(), v.strip()))
+                parsed_result.append(" ".join(this_result).rstrip(","))
+            result = "\n\n".join(parsed_result)
 
-        for r in results:
-            this_result = []
-            for k, v in r.items():
-                this_result.append("%s:%s," % (k.strip(), v.strip()))
-            parsed_result.append(" ".join(this_result).rstrip(","))
-        result = "\n\n".join(parsed_result)
         try:
             update_cached_result(self.rut, telegram_user_id, result)
         except Exception as e:
