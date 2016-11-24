@@ -49,7 +49,12 @@ def update_cached_result(user_id, rut, result):
         session.add(c_result)
         session.commit()
         return
-    c_result[0].result = result
+    # If the new result is the same than the previous one onupdate is not triggered and
+    # the timestamp of the cached result is not updated.
+    if c_result[0].result == result:
+        c_result[0].retrieved = datetime.datetime.utcnow()
+    else:
+        c_result[0].result = result
     session.commit()
 
 def set_user_rut(telegram_id, rut):
