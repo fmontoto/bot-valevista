@@ -22,7 +22,7 @@ class CachedResult(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
     rut = Column(String(length=9))
-    retrieved = Column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
+    retrieved = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     result = Column(String(length=250))
 
     def __repr__(self):
