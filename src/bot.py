@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+from queue import Queue
 import os
+from signal import signal, SIGINT, SIGTERM, SIGABRT
+import time
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
@@ -18,6 +21,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN", None)
+
+RUNNING = True
+SUBSCRIBED = Queue()
 
 def start(bot, update):
     name = update.message.from_user.first_name or update.message.from_user.username
@@ -76,11 +82,35 @@ def rut(bot, update, rut):
     else:
         update.message.reply_text(response)
 
+def subscribe(bot, update):
+    SUBSCRIBED.put_nowait(update.message.chat.id)
+    update.message.reply_text("Ok!")
+
 def debug(bot, update):
     logger.info("Debug: %s, %s" % (bot, update))
 
 def error(bot, update, error):
     logger.warn("Update %s caused error %s" % (update, error))
+
+def signal_handler(self, signum, frame):
+    global RUNNING
+    if RUNNING:
+        RUNNING = False
+    else:
+        logger.warn("Exiting now!")
+        os.exit(1)
+
+def loop(updater):
+    stop_signals = (SIGINT, SIGTERM, SIGABRT)
+    for sig in stop_signals:
+        signal(sig, signal_handler)
+
+    while RUNNING:
+        if not SUBSCRIBED.empty():
+            chat_id = SUBSCRIBED.get_nowait()
+            updater.bot.sendMessage(chat_id, "Testing not reply ms!")
+        time.sleep(3)
+    updater.stop()
 
 def main():
     updater = Updater(TOKEN)
@@ -93,11 +123,13 @@ def main():
     dp.add_handler(CommandHandler("debug", debug))
     dp.add_handler(CommandHandler("help", help))
 
+    dp.add_handler(CommandHandler("subscribe"), subscribe)
+
     dp.add_handler(MessageHandler(Filters.text, msg))
 
     dp.add_error_handler(error)
     updater.start_webhook(listen="0.0.0.0", port=443, url_path="/bot-valevista")
-    updater.idle()
+    loop(updater)
 
 if __name__ == "__main__":
     main()
