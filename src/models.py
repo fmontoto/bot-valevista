@@ -28,3 +28,11 @@ class CachedResult(Base):
     def __repr__(self):
         return "<CachedResult(id='%s', user_id='%s', rut='%s', retrieved='%s', result='%s')>" % (
                 self.id, self.user_id, self.rut, self.retrieved, self.result)
+
+
+class SubscribedUsers(Base):
+    __tablename__ = 'subscribed_users'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True)
+    chat_id = Column(String(length=20), unique=True)

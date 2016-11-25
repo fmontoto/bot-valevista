@@ -10,7 +10,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from src.utils import digito_verificador, normalize_rut
 from src.web import ParsingException, Web
-from src.model_interface import get_user_rut, set_user_rut
+from src.model_interface import User, CachedResult
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -62,11 +62,11 @@ def set_rut(bot, update):
     if not normalize_rut(spl[1]):
         update.message.reply_text("Rut no valido.")
         return
-    set_user_rut(update.message.from_user.id, normalize_rut(spl[1]))
+    User.set_rut(update.message.from_user.id, normalize_rut(spl[1]))
     update.message.reply_text("Rut:%s-%s guardado correctamente" % (rut, digito_verificador(rut)))
 
 def get_by_rut(bot, update):
-    rut_ = get_user_rut(update.message.from_user.id)
+    rut_ = User.get_rut(update.message.from_user.id)
     if rut_:
         return rut(bot, update, rut_)
     update.message.reply_text("No hay un rut almacenado, utiliza '/set <RUT>' para almacenarlo.")
