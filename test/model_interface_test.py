@@ -80,5 +80,31 @@ class TestSubscription(TestCase):
         self.assertIsNone(User.subscribe(telegram_id2, chat_id2))
 
     def testGetSubscribersToUpdate(self):
-        self.fail("Not implemented")
+        telegram_id = 23
+        telegram_id2 = 24
+        telegram_id3 = 25
+        telegram_id4 = 26
+        chat_id = 33
+        chat_id2 = 34
+        chat_id3 = 35
+        chat_id4 = 36
+        rut = 18392843
+        rut2 = 62719201
+        rut3 = 73829365
+        rut4 = 83927162
 
+        User.set_rut(telegram_id, rut)
+        User.set_rut(telegram_id2, rut2)
+        User.set_rut(telegram_id3, rut3)
+        User.set_rut(telegram_id4, rut4)
+        User.subscribe(telegram_id, chat_id)
+        User.subscribe(telegram_id2, chat_id2)
+        User.subscribe(telegram_id3, chat_id3)
+
+        CachedResult.update(User.get_id(telegram_id), rut, "result")
+        CachedResult.update(User.get_id(telegram_id2), rut2, "result2")
+
+        self.assertTrue(User.is_subscribed(telegram_id, chat_id))
+        self.assertTrue(User.is_subscribed(telegram_id2, chat_id2))
+        self.assertEqual(1, len(User.get_subscriber_not_retrieved_hours_ago(2)))
+        self.assertEqual(3, len(User.get_subscriber_not_retrieved_hours_ago(0)))

@@ -95,11 +95,18 @@ class User(object):
         session.delete(result[0])
         session.commit()
 
-    def get_subscriber_not_retrieved_hours_ago(self, hours):
-        return session.query(models.CachedResult).filter(
+    @classmethod
+    def get_subscriber_not_retrieved_hours_ago(cls, hours):
+        time_limit = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
+        already_updated_users = session.query(models.User).filter(
+                models.SubscribedUsers.user_id == models.User.id).filter(
                 models.CachedResult.user_id == models.User.id).filter(
-                models.CachedResult.rut == models.User.rut).filter(
-                models.SubscribedUsers.user_id == models.User.id)
+                models.CachedResult.retrieved > time_limit)
+        # All subscribed users minus the already updated
+        to_update_users = session.query(models.User).filter(
+                models.SubscribedUsers.user_id == models.User.id).filter(
+                models.User.id.notin_(already_updated_users.with_entities(models.User.id)))
+        return to_update_users.all()
 
 class CachedResult(object):
     @classmethod
