@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from queue import Queue
+import random
 import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 import time
@@ -10,7 +11,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from src.utils import digito_verificador, normalize_rut
 from src.web import ParsingException, Web
-from src.model_interface import User, CachedResult
+from src.model_interface import User
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -21,6 +22,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN", None)
+
+# Minimum hours before automatically update a cached result from a user
+HOURS_TO_UPDATE = 33
 
 RUNNING = True
 SUBSCRIBED = Queue()
@@ -92,7 +96,7 @@ def debug(bot, update):
 def error(bot, update, error):
     logger.warn("Update %s caused error %s" % (update, error))
 
-def signal_handler(self, signum, frame):
+def signal_handler(signum, frame):
     global RUNNING
     if RUNNING:
         RUNNING = False
@@ -107,8 +111,14 @@ def loop(updater):
 
     while RUNNING:
         if not SUBSCRIBED.empty():
-            chat_id = SUBSCRIBED.get_nowait()
-            updater.bot.sendMessage(chat_id, "Testing not reply ms!")
+            users_to_update = User.get_subscriber_not_retrieved_hours_ago(HOURS_TO_UPDATE)
+            if len(users_to_update) > 0:
+                user_to_update = users_to_update[random.randint(0, len(users_to_update) - 1)]
+                print("to update: %s" % user_to_update)
+                print(type(users_to_update))
+                #updater.bot.sendMessage(chat_id, "Testing not reply ms!")
+
+        # time.sleep(random.randint(5 * 60, 25 * 60) # Between 5 and 15 minutes
         time.sleep(3)
     updater.stop()
 
