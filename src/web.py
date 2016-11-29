@@ -3,7 +3,7 @@ from collections import OrderedDict
 import logging
 import requests
 
-from .model_interface import cached_result, update_cached_result
+from .model_interface import CachedResult, User
 
 import bs4
 
@@ -38,7 +38,8 @@ class Web(object):
         return self.parse()
 
     def get_parsed_results(self, telegram_user_id):
-        result = cached_result(self.rut, telegram_user_id)
+        user_id = User.get_id(telegram_user_id)
+        result = CachedResult.get(telegram_user_id, self.rut)
         if result:
             logger.info("Using cache results.")
             return result
@@ -56,7 +57,7 @@ class Web(object):
             result = "\n\n".join(parsed_result)
 
         try:
-            update_cached_result(self.rut, telegram_user_id, result)
+            CachedResult.update(self.rut, telegram_user_id, result)
         except Exception as e:
             logger.error(e)
         finally:
