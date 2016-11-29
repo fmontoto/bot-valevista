@@ -53,7 +53,7 @@ class Web(object):
                 this_result = []
                 for k, v in r.items():
                     this_result.append("%s: %s\n" % (k.strip(), v.strip()))
-                parsed_result.append("".join(this_result).rstrip(","))
+                parsed_result.append("".join(this_result).rstrip("\n"))
             result = "\n\n".join(parsed_result)
 
         try:

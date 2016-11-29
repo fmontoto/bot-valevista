@@ -133,7 +133,7 @@ def main():
     dp.add_handler(CommandHandler("debug", debug))
     dp.add_handler(CommandHandler("help", help))
 
-    dp.add_handler(CommandHandler("subscribe"), subscribe)
+    dp.add_handler(CommandHandler("subscribe", subscribe))
 
     dp.add_handler(MessageHandler(Filters.text, msg))
 
