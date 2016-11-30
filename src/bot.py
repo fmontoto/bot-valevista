@@ -14,10 +14,14 @@ from src.web import ParsingException, Web
 from src.model_interface import User
 
 # Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO,
-                    filename="log/bot.log",
-                    filemode="a+")
+try:
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                        level=logging.INFO,
+                        filename="log/bot.log",
+                        filemode="a+")
+except FileNotFoundError:
+    print("log file not found")
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +56,7 @@ def msg(bot, update):
     if not is_rut:
         echo(bot, update)
     else:
-        rut(bot, update, is_rut)
+        update_cache_and_reply(update.message.from_user.id, is_rut, update.message.reply_text, False)
 
 def echo(bot, update):
     update.message.reply_text(update.message.text)
@@ -72,19 +76,25 @@ def set_rut(bot, update):
 def get_by_rut(bot, update):
     rut_ = User.get_rut(update.message.from_user.id)
     if rut_:
-        return rut(bot, update, rut_)
+        return update_cache_and_reply(update.message.from_user.id, rut_, update.message.reply_text, False)
     update.message.reply_text("No hay un rut almacenado, utiliza '/set <RUT>' para almacenarlo.")
 
-def rut(bot, update, rut):
+def update_cache_and_reply(telegram_id, rut, reply_fn, reply_only_on_change_and_expected):
     try:
-        response = Web(rut, digito_verificador(rut)).get_parsed_results(update.message.from_user.id)
+        web_parser = Web(rut, digito_verificador(rut))
+        response, from_cache = web_parser.get_parsed_results(telegram_id)
     except ParsingException as e:
-        update.message.reply_text(e.public_message)
+        reply_fn(e.public_message)
     except Exception as e:
         logger.error(e)
-        update.message.reply_text("ups, un error ha ocurrido =( lo solucionaremos a la brevedad (?)")
+        reply_fn("Ups!, un error inesperado a ocurrido, lo solucionaremos a la brevedad (?)")
     else:
-        update.message.reply_text(response)
+        if not reply_only_on_change_and_expected:
+            reply_fn(response)
+            return
+        if web_parser.page_type == web_parser.EXPECTED and not from_cache:
+            reply_fn(response)
+
 
 def subscribe(bot, update):
     SUBSCRIBED.put_nowait(update.message.chat.id)
@@ -104,20 +114,22 @@ def signal_handler(signum, frame):
         logger.warn("Exiting now!")
         os.exit(1)
 
+def step(hours=HOURS_TO_UPDATE):
+    users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
+    if len(users_to_update) > 0:
+        user_to_update = users_to_update[random.randint(0, len(users_to_update) - 1)]
+        print("to update: %s" % user_to_update)
+        print(type(users_to_update))
+        #updater.bot.sendMessage(chat_id, "Testing not reply ms!")
+
+
 def loop(updater):
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
     for sig in stop_signals:
         signal(sig, signal_handler)
 
     while RUNNING:
-        if not SUBSCRIBED.empty():
-            users_to_update = User.get_subscriber_not_retrieved_hours_ago(HOURS_TO_UPDATE)
-            if len(users_to_update) > 0:
-                user_to_update = users_to_update[random.randint(0, len(users_to_update) - 1)]
-                print("to update: %s" % user_to_update)
-                print(type(users_to_update))
-                #updater.bot.sendMessage(chat_id, "Testing not reply ms!")
-
+        step()
         # time.sleep(random.randint(5 * 60, 25 * 60) # Between 5 and 15 minutes
         time.sleep(3)
     updater.stop()

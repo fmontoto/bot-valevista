@@ -1,3 +1,4 @@
+from contextlib import ContextDecorator
 from unittest import TestCase
 
 import sqlalchemy
@@ -6,6 +7,18 @@ from sqlalchemy.orm import sessionmaker
 
 from src import models, model_interface
 from src.model_interface import User, CachedResult, UserBadUseError
+
+class mock_model_interface(ContextDecorator):
+    def __enter__(self):
+        self.engine = create_engine('sqlite:///:memory:')
+        models.Base.metadata.create_all(self.engine)
+        self.session = sessionmaker(bind=self.engine)()
+        self.old_session = model_interface.session
+        model_interface.session = self.session
+        return self
+
+    def __exit__(self, *exc):
+        model_interface.session = self.old_session
 
 
 class TestModelInterface(TestCase):

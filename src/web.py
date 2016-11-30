@@ -38,11 +38,16 @@ class Web(object):
         return self.parse()
 
     def get_parsed_results(self, telegram_user_id):
+        """
+
+        :param telegram_user_id:
+        :return: (str, boolean) - (result, returned_from_cache)
+        """
         user_id = User.get_id(telegram_user_id)
-        result = CachedResult.get(telegram_user_id, self.rut)
+        result = CachedResult.get(user_id, self.rut)
         if result:
             logger.info("Using cache results.")
-            return result
+            return result, True
         logger.info("Querying the bank page")
         results = self.get_results()
         if self.page_type != self.EXPECTED:
@@ -57,11 +62,11 @@ class Web(object):
             result = "\n\n".join(parsed_result)
 
         try:
-            CachedResult.update(self.rut, telegram_user_id, result)
+            CachedResult.update(self.rut, user_id, result)
         except Exception as e:
             logger.error(e)
         finally:
-            return result
+            return result, False
 
     def download(self):
         try:

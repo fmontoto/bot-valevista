@@ -123,11 +123,14 @@ class CachedResult(object):
             c_result = models.CachedResult(rut=rut, user_id=user_id, result=result)
             session.add(c_result)
             session.commit()
-            return
+            return True
         # If the new result is the same than the previous one onupdate is not triggered and
         # the timestamp of the cached result is not updated.
         if c_result[0].result == result:
             c_result[0].retrieved = datetime.datetime.utcnow()
+            changed = False
         else:
             c_result[0].result = result
+            changed = True
         session.commit()
+        return changed
