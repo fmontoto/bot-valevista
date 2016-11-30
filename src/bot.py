@@ -80,7 +80,7 @@ def set_rut(bot, update):
         "Rut:%s-%s guardado correctamente\n Envía /get para consultar directamente" % (rut, digito_verificador(rut)))
 
 def get_by_rut(bot, update):
-    logger.info("Get %s", update_cache_and_reply())
+    logger.info("Get %s", update.message.from_user.i)
     rut_ = User.get_rut(update.message.from_user.id)
     if rut_:
         return update_cache_and_reply(update.message.from_user.id, rut_, update.message.reply_text, False)
