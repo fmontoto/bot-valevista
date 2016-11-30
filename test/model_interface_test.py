@@ -24,14 +24,10 @@ class mock_model_interface(ContextDecorator):
 class TestModelInterface(TestCase):
 
     def setUp(self):
-        self.engine = create_engine('sqlite:///:memory:')
-        models.Base.metadata.create_all(self.engine)
-        self.session = scoped_session(sessionmaker(bind=self.engine))
-        self.old_session = model_interface.session
-        model_interface.session = self.session
+        model_interface._memory_start()
 
     def tearDown(self):
-        model_interface.session = self.old_session
+        model_interface._start()
 
     def testGetUserId(self):
         self.assertRaises(ValueError, User.get_id, 2342, False)
@@ -60,14 +56,10 @@ class TestModelInterface(TestCase):
 class TestSubscription(TestCase):
 
     def setUp(self):
-        self.engine = create_engine('sqlite:///:memory:')
-        models.Base.metadata.create_all(self.engine)
-        self.session = scoped_session(sessionmaker(bind=self.engine))
-        self.old_session = model_interface.session
-        model_interface.session = self.session
+        model_interface._memory_start()
 
     def tearDown(self):
-        model_interface.session = self.old_session
+        model_interface._start()
 
     def testSimpleSubscribeUnsubscribe(self):
         telegram_id = 34
