@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from . import models
 
@@ -9,8 +9,7 @@ from . import models
 engine = create_engine('sqlite:///db.sqlite')
 
 models.Base.metadata.create_all(engine)
-DBSession = sessionmaker(bind=engine)
-session = DBSession()
+session = scoped_session(sessionmaker(bind=engine))
 
 class ValeVistaBotException(Exception):
     def __init__(self, public_message):
@@ -25,17 +24,22 @@ class UserBadUseError(ValeVistaBotException):
 
 def commit_rollback(session):
     try:
+        session()
         session.commit()
     except:
         session.rollback()
         raise
+    finally:
+        session.remove()
 
 class User(object):
     @classmethod
     def _get_user(cls, telegram_id, create=True):
+        session()
         user = session.query(models.User).filter_by(telegram_id=telegram_id).first()
         if not user:
             if not create:
+                session.remove()
                 raise ValueError("User does not exists")
             user = models.User(telegram_id=telegram_id)
             session.add(user)
@@ -49,27 +53,36 @@ class User(object):
         :param create: If true and the telegram id does not exists, creates a new user
         :return: the id of the user.
         """
-        return cls._get_user(telegram_id, create).id
+        id = cls._get_user(telegram_id, create).id
+        session.remove()
+        return id
 
     @classmethod
     def set_rut(cls, telegram_id, rut):
         user = cls._get_user(telegram_id, True)
         if user.rut == rut:
+            session.remove()
             return
         user.rut = rut
         session.commit()
+        session.remove()
 
     @classmethod
     def get_rut(cls, telegram_id):
-        user = cls._get_user(telegram_id, True)
-        if user.rut:
-            return user.rut
-        return None
+        try:
+            user = cls._get_user(telegram_id, True)
+            if user.rut:
+                return user.rut
+            return None
+        finally:
+            session.remove()
 
     @classmethod
     def is_subscribed(cls, telegram_id, chat_id):
         user_id = cls.get_id(telegram_id)
+        session()
         result = session.query(models.SubscribedUsers).filter_by(user_id=user_id, chat_id=chat_id).all()
+        session.remove()
         return len(result) > 0
 
     @classmethod
@@ -80,23 +93,28 @@ class User(object):
             raise UserBadUseError("Ya esta registrado")
 
         user_id = User.get_id(telegram_id, False)
+        session()
         subscription = models.SubscribedUsers(user_id=user_id, chat_id=chat_id)
         session.add(subscription)
         commit_rollback(session)
+        session.remove()
 
 
     @classmethod
     def unsubscribe(cls, telegram_id, chat_id):
         user_id = cls.get_id(telegram_id, False)
+        session()
         result = session.query(models.SubscribedUsers).filter_by(user_id=user_id, chat_id=chat_id).all()
         if not len(result):
             raise UserBadUseError("No estas suscrito")
 
         session.delete(result[0])
         session.commit()
+        session.remove()
 
     @classmethod
     def get_subscriber_not_retrieved_hours_ago(cls, hours):
+        session()
         time_limit = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
         already_updated_users = session.query(models.User).filter(
                 models.SubscribedUsers.user_id == models.User.id).filter(
@@ -106,23 +124,29 @@ class User(object):
         to_update_users = session.query(models.User).filter(
                 models.SubscribedUsers.user_id == models.User.id).filter(
                 models.User.id.notin_(already_updated_users.with_entities(models.User.id)))
+        session.remove()
         return to_update_users.all()
 
 class CachedResult(object):
     @classmethod
     def get(cls, user_id, rut):
+        session()
         result = session.query(models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
         if not result or result[0].retrieved < (datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
+            session.remove()
             return None
+        session.remove()
         return result[0].result
 
     @classmethod
     def update(cls, user_id, rut, result):
+        session()
         c_result = session.query(models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
         if not c_result:
             c_result = models.CachedResult(rut=rut, user_id=user_id, result=result)
             session.add(c_result)
             session.commit()
+            session.remove()
             return True
         # If the new result is the same than the previous one onupdate is not triggered and
         # the timestamp of the cached result is not updated.
@@ -133,4 +157,5 @@ class CachedResult(object):
             c_result[0].result = result
             changed = True
         session.commit()
+        session.remove()
         return changed
