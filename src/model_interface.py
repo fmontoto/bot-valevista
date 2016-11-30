@@ -1,4 +1,5 @@
 import datetime
+import logging
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -7,6 +8,8 @@ from . import models
 
 
 _session = None
+
+logger = logging.getLogger(__name__)
 
 def _start():
     global _session

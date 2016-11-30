@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 from functools import partial
 import logging
 from queue import Queue
@@ -10,9 +11,9 @@ import time
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
+from src.model_interface import User, _start, UserBadUseError
 from src.utils import digito_verificador, normalize_rut
 from src.web import ParsingException, Web
-from src.model_interface import User, _start, UserBadUseError
 
 # Enable logging
 try:
@@ -38,9 +39,11 @@ def start(bot, update):
     name = update.message.from_user.first_name or update.message.from_user.username
     msg = ("Hola %s, soy el bot de los vale vista pagados por la UChile. Actualmente estoy en construcción.\n"
 	       "Para consultar si tienes vales vista pendientes en el banco, enviame el rut a consultar en un mensaje, "
-           "por ejemplo: 12.345.678-9.\n"
+           "por ejemplo: 12.345.678-9 o 12.345.678 o 12345678.\n"
            "Si quieres que recuerde tu rut para consultarlo recurrentemente, envia: /set TU_RUT. "
-           "Luego consultalo enviando /get.")
+           "Luego consultalo enviando /get. \n"
+           "Una vez que guardes tu rut envía /subscribe y revisaré periódicamente la página del banco para"
+           "notificarte si hay nuevos vale vista.")
     update.message.reply_text(msg % name)
 
 def help(bot, update):
@@ -72,9 +75,12 @@ def set_rut(bot, update):
         update.message.reply_text("Rut no valido.")
         return
     User.set_rut(update.message.from_user.id, normalize_rut(spl[1]))
-    update.message.reply_text("Rut:%s-%s guardado correctamente" % (rut, digito_verificador(rut)))
+    logger.info("User %s set rut %s", update.message.from_user.id, normalize_rut(spl[1]))
+    update.message.reply_text(
+        "Rut:%s-%s guardado correctamente\n Envía /get para consultar directamente" % (rut, digito_verificador(rut)))
 
 def get_by_rut(bot, update):
+    logger.info("Get %s", update_cache_and_reply())
     rut_ = User.get_rut(update.message.from_user.id)
     if rut_:
         return update_cache_and_reply(update.message.from_user.id, rut_, update.message.reply_text, False)
@@ -101,23 +107,25 @@ def subscribe(bot, update):
     try:
         User.subscribe(update.message.from_user.id, update.message.chat.id)
     except UserBadUseError as e:
-        logging.warning(e.public_message)
+        logger.warning(e.public_message)
         update.message.reply_text(e.public_message)
     else:
+        logger.info("User %s subscribed", update.message.from_user.id)
         update.message.reply_text(
             ("Estas subscrito, si hay cambios con respecto al último resultado que miraste aquí, "
              "te enviaré un mensaje. Estaré revisando la página del banco cada uno o dos días. Si "
              "la desesperación es mucha, recuerda que puedes preguntarme con /get \n Para eliminar "
-             "tu subscripción, envía el comando unsubscribe."))
+             "tu subscripción, envía el comando /unsubscribe."))
 
 
 def unsubscribe(bot, update):
     try:
         User.unsubscribe(update.message.from_user.id, update.message.chat.id)
     except UserBadUseError as e:
-        logging.warning(e.public_message)
+        logger.warning(e.public_message)
         update.message.reply_text(e.public_message)
     else:
+        logger.info("User %s unsubscribed", update.message.from_user.id)
         update.message.reply_text("Ya no estás subscrito, para volver a estarlo, envía /subscribe")
 
 def debug(bot, update):
@@ -136,7 +144,7 @@ def signal_handler(signum, frame):
 
 def step(updater, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
-    logging.info("To update queue length: %s", len(users_to_update))
+    logger.info("To update queue length: %s", len(users_to_update))
     if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(0, len(users_to_update) - 1)]
         update_cache_and_reply(
@@ -151,7 +159,7 @@ def loop(updater):
 
     while RUNNING:
         step(updater)
-        time.sleep(random.randint(5 * 60, 25 * 60)) # Between 5 and 15 minutes
+        time.sleep(random.randint(5 * 60, 25 * 60)) # Between 5 and 25 minutes
     updater.stop()
 
 def main():
