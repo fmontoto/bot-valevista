@@ -80,10 +80,11 @@ def set_rut(bot, update):
         "Rut:%s-%s guardado correctamente\n Envía /get para consultar directamente" % (rut, digito_verificador(rut)))
 
 def get_by_rut(bot, update):
-    logger.info("Get %s", update.message.from_user.i)
-    rut_ = User.get_rut(update.message.from_user.id)
+    telegram_id = update.message.from_user.id
+    logger.info("Get %s", telegram_id)
+    rut_ = User.get_rut(telegram_id)
     if rut_:
-        return update_cache_and_reply(update.message.from_user.id, rut_, update.message.reply_text, False)
+        return update_cache_and_reply(telegram_id, rut_, update.message.reply_text, False)
     update.message.reply_text("No hay un rut almacenado, utiliza '/set <RUT>' para almacenarlo.")
 
 def update_cache_and_reply(telegram_id, rut, reply_fn, reply_only_on_change_and_expected):
