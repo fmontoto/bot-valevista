@@ -64,7 +64,7 @@ class Web(object):
         try:
             CachedResult.update(self.rut, user_id, result)
         except Exception as e:
-            logger.error(e)
+            logging.exception("parsed_results")
         finally:
             return result, False
 

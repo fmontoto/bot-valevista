@@ -9,7 +9,11 @@ from . import models
 engine = create_engine('sqlite:///db.sqlite')
 
 models.Base.metadata.create_all(engine)
-session = scoped_session(sessionmaker(bind=engine))
+session = None
+
+def _start():
+    global session
+    session = scoped_session(sessionmaker(bind=engine))
 
 class ValeVistaBotException(Exception):
     def __init__(self, public_message):
@@ -35,7 +39,6 @@ def commit_rollback(session):
 class User(object):
     @classmethod
     def _get_user(cls, telegram_id, create=True):
-        session()
         user = session.query(models.User).filter_by(telegram_id=telegram_id).first()
         if not user:
             if not create:
@@ -53,36 +56,27 @@ class User(object):
         :param create: If true and the telegram id does not exists, creates a new user
         :return: the id of the user.
         """
-        id = cls._get_user(telegram_id, create).id
-        session.remove()
-        return id
+        return cls._get_user(telegram_id, create).id
 
     @classmethod
     def set_rut(cls, telegram_id, rut):
         user = cls._get_user(telegram_id, True)
         if user.rut == rut:
-            session.remove()
             return
         user.rut = rut
         session.commit()
-        session.remove()
 
     @classmethod
     def get_rut(cls, telegram_id):
-        try:
-            user = cls._get_user(telegram_id, True)
-            if user.rut:
-                return user.rut
-            return None
-        finally:
-            session.remove()
+        user = cls._get_user(telegram_id, True)
+        if user.rut:
+            return user.rut
+        return None
 
     @classmethod
     def is_subscribed(cls, telegram_id, chat_id):
         user_id = cls.get_id(telegram_id)
-        session()
         result = session.query(models.SubscribedUsers).filter_by(user_id=user_id, chat_id=chat_id).all()
-        session.remove()
         return len(result) > 0
 
     @classmethod
@@ -93,7 +87,6 @@ class User(object):
             raise UserBadUseError("Ya esta registrado")
 
         user_id = User.get_id(telegram_id, False)
-        session()
         subscription = models.SubscribedUsers(user_id=user_id, chat_id=chat_id)
         session.add(subscription)
         commit_rollback(session)
@@ -103,7 +96,6 @@ class User(object):
     @classmethod
     def unsubscribe(cls, telegram_id, chat_id):
         user_id = cls.get_id(telegram_id, False)
-        session()
         result = session.query(models.SubscribedUsers).filter_by(user_id=user_id, chat_id=chat_id).all()
         if not len(result):
             raise UserBadUseError("No estas suscrito")
@@ -114,7 +106,6 @@ class User(object):
 
     @classmethod
     def get_subscriber_not_retrieved_hours_ago(cls, hours):
-        session()
         time_limit = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
         already_updated_users = session.query(models.User).filter(
                 models.SubscribedUsers.user_id == models.User.id).filter(
@@ -130,7 +121,6 @@ class User(object):
 class CachedResult(object):
     @classmethod
     def get(cls, user_id, rut):
-        session()
         result = session.query(models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
         if not result or result[0].retrieved < (datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
             session.remove()
@@ -140,7 +130,6 @@ class CachedResult(object):
 
     @classmethod
     def update(cls, user_id, rut, result):
-        session()
         c_result = session.query(models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
         if not c_result:
             c_result = models.CachedResult(rut=rut, user_id=user_id, result=result)

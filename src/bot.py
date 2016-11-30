@@ -11,7 +11,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from src.utils import digito_verificador, normalize_rut
 from src.web import ParsingException, Web
-from src.model_interface import User
+from src.model_interface import User, _start
 
 # Enable logging
 try:
@@ -135,6 +135,7 @@ def loop(updater):
     updater.stop()
 
 def main():
+    _start()
     updater = Updater(TOKEN)
 
     dp = updater.dispatcher
