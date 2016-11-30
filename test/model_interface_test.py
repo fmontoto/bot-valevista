@@ -10,15 +10,10 @@ from src.model_interface import User, CachedResult, UserBadUseError
 
 class mock_model_interface(ContextDecorator):
     def __enter__(self):
-        self.engine = create_engine('sqlite:///:memory:')
-        models.Base.metadata.create_all(self.engine)
-        self.session = scoped_session(sessionmaker(bind=self.engine))
-        self.old_session = model_interface.session
-        model_interface.session = self.session
-        return self
+        model_interface._memory_start()
 
     def __exit__(self, *exc):
-        model_interface.session = self.old_session
+        model_interface._start()
 
 
 class TestModelInterface(TestCase):
@@ -52,6 +47,12 @@ class TestModelInterface(TestCase):
         self.assertEqual("12345678", User.get_rut(32))
         User.set_rut(32, "12345679")
         self.assertEqual("12345679", User.get_rut(32))
+
+    def testGetTelegramId(self):
+        self.assertRaises(ValueError, User.get_telegram_id, 3)
+        User.set_rut(23, "12345578")
+        user_id = User.get_id(23, False)
+        self.assertEqual(23, User.get_telegram_id(user_id))
 
 class TestSubscription(TestCase):
 
@@ -113,3 +114,4 @@ class TestSubscription(TestCase):
         self.assertTrue(User.is_subscribed(telegram_id2, chat_id2))
         self.assertEqual(1, len(User.get_subscriber_not_retrieved_hours_ago(2)))
         self.assertEqual(3, len(User.get_subscriber_not_retrieved_hours_ago(0)))
+        self.assertEqual("%s" % chat_id, User.get_chat_id(User.get_id(telegram_id)))

@@ -64,6 +64,14 @@ class User(object):
         return cls._get_user(telegram_id, create).id
 
     @classmethod
+    def get_telegram_id(cls, user_id):
+        session = _session()
+        user = session.query(models.User).filter_by(id=user_id).first()
+        if not user:
+            raise ValueError("User does not exists")
+        return user.telegram_id
+
+    @classmethod
     def set_rut(cls, telegram_id, rut):
         session = _session()
         user = cls._get_user(telegram_id, True)
@@ -124,6 +132,14 @@ class User(object):
                 models.SubscribedUsers.user_id == models.User.id).filter(
                 models.User.id.notin_(already_updated_users.with_entities(models.User.id)))
         return to_update_users.all()
+
+    @classmethod
+    def get_chat_id(cls, user_id):
+        session = _session()
+        subscribed_user = session.query(models.SubscribedUsers).filter(user_id==user_id).first()
+        if subscribed_user is None:
+            raise ValueError("User isn't subscribed")
+        return subscribed_user.chat_id
 
 class CachedResult(object):
     @classmethod

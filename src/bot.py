@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from functools import partial
 import logging
 from queue import Queue
 import random
@@ -11,7 +12,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from src.utils import digito_verificador, normalize_rut
 from src.web import ParsingException, Web
-from src.model_interface import User, _start
+from src.model_interface import User, _start, UserBadUseError
 
 # Enable logging
 try:
@@ -97,8 +98,27 @@ def update_cache_and_reply(telegram_id, rut, reply_fn, reply_only_on_change_and_
 
 
 def subscribe(bot, update):
-    SUBSCRIBED.put_nowait(update.message.chat.id)
-    update.message.reply_text("Ok!")
+    try:
+        User.subscribe(update.message.from_user.id, update.message.chat.id)
+    except UserBadUseError as e:
+        logging.warning(e.public_message)
+        update.message.reply_text(e.public_message)
+    else:
+        update.message.reply_text(
+            ("Estas subscrito, si hay cambios con respecto al último resultado que miraste aquí, "
+             "te enviaré un mensaje. Estaré revisando la página del banco cada uno o dos días. Si "
+             "la desesperación es mucha, recuerda que puedes preguntarme con /get \n Para eliminar "
+             "tu subscripción, envía el comando unsubscribe."))
+
+
+def unsubscribe(bot, update):
+    try:
+        User.unsubscribe(update.message.from_user.id, update.message.chat.id)
+    except UserBadUseError as e:
+        logging.warning(e.public_message)
+        update.message.reply_text(e.public_message)
+    else:
+        update.message.reply_text("Ya no estás subscrito, para volver a estarlo, envía /subscribe")
 
 def debug(bot, update):
     logger.info("Debug: %s, %s" % (bot, update))
@@ -114,13 +134,14 @@ def signal_handler(signum, frame):
         logger.warn("Exiting now!")
         os.exit(1)
 
-def step(hours=HOURS_TO_UPDATE):
+def step(updater, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
+    logging.info("To update queue length: %s", len(users_to_update))
     if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(0, len(users_to_update) - 1)]
-        print("to update: %s" % user_to_update)
-        print(type(users_to_update))
-        #updater.bot.sendMessage(chat_id, "Testing not reply ms!")
+        update_cache_and_reply(
+                user_to_update.telegram_id, user_to_update.rut,
+                partial(updater.bot.sendMessage, User.get_chat_id(user_to_update.id)), True)
 
 
 def loop(updater):
@@ -129,9 +150,8 @@ def loop(updater):
         signal(sig, signal_handler)
 
     while RUNNING:
-        step()
-        # time.sleep(random.randint(5 * 60, 25 * 60) # Between 5 and 15 minutes
-        time.sleep(3)
+        step(updater)
+        time.sleep(random.randint(5 * 60, 25 * 60)) # Between 5 and 15 minutes
     updater.stop()
 
 def main():
@@ -147,6 +167,7 @@ def main():
     dp.add_handler(CommandHandler("help", help))
 
     dp.add_handler(CommandHandler("subscribe", subscribe))
+    dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
     dp.add_handler(MessageHandler(Filters.text, msg))
 
