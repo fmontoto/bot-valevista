@@ -62,7 +62,7 @@ class Web(object):
             result = "\n\n".join(parsed_result)
 
         try:
-            CachedResult.update(self.rut, user_id, result)
+            CachedResult.update(user_id, self.rut, result)
         except Exception as e:
             logging.exception("parsed_results")
         finally:
