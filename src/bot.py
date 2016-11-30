@@ -42,7 +42,7 @@ def start(bot, update):
            "por ejemplo: 12.345.678-9 o 12.345.678 o 12345678.\n"
            "Si quieres que recuerde tu rut para consultarlo recurrentemente, envia: /set TU_RUT. "
            "Luego consultalo enviando /get. \n"
-           "Una vez que guardes tu rut envía /subscribe y revisaré periódicamente la página del banco para"
+           "Una vez que guardes tu rut envía /subscribe y revisaré periódicamente la página del banco para "
            "notificarte si hay nuevos vale vista.")
     update.message.reply_text(msg % name)
 
