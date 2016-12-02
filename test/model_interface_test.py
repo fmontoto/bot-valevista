@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from src import models, model_interface
 from src.model_interface import User, CachedResult, UserBadUseError
 
+
 class mock_model_interface(ContextDecorator):
     def __enter__(self):
         model_interface._memory_start()
@@ -54,6 +55,7 @@ class TestModelInterface(TestCase):
         user_id = User.get_id(23, False)
         self.assertEqual(23, User.get_telegram_id(user_id))
 
+
 class TestSubscription(TestCase):
 
     def setUp(self):
@@ -70,19 +72,23 @@ class TestSubscription(TestCase):
         # User isn't subscribed
         self.assertFalse(User.is_subscribed(telegram_id, chat_id))
         # User does not have a registered rut
-        self.assertRaises(UserBadUseError, User.subscribe, telegram_id, chat_id)
+        self.assertRaises(UserBadUseError, User.subscribe, telegram_id,
+                          chat_id)
         self.assertIsNone(User.set_rut(telegram_id, 28194837))
         self.assertFalse(User.is_subscribed(telegram_id, chat_id))
         self.assertIsNone(User.subscribe(telegram_id, chat_id))
         self.assertTrue(User.is_subscribed(telegram_id, chat_id))
-        self.assertRaises(UserBadUseError, User.subscribe, telegram_id, chat_id)
+        self.assertRaises(UserBadUseError, User.subscribe, telegram_id,
+                          chat_id)
         self.assertIsNone(User.unsubscribe(telegram_id, chat_id))
         self.assertFalse(User.is_subscribed(telegram_id, chat_id))
         self.assertIsNone(User.subscribe(telegram_id, chat_id))
         self.assertIsNone(User.set_rut(telegram_id2, 28194837))
         self.assertFalse(User.is_subscribed(telegram_id2, chat_id2))
-        self.assertRaises(sqlalchemy.exc.IntegrityError, User.subscribe, telegram_id, chat_id2)
-        self.assertRaises(sqlalchemy.exc.IntegrityError, User.subscribe, telegram_id2, chat_id)
+        self.assertRaises(sqlalchemy.exc.IntegrityError, User.subscribe,
+                          telegram_id, chat_id2)
+        self.assertRaises(sqlalchemy.exc.IntegrityError, User.subscribe,
+                          telegram_id2, chat_id)
         self.assertIsNone(User.subscribe(telegram_id2, chat_id2))
 
     def testGetSubscribersToUpdate(self):
@@ -112,6 +118,9 @@ class TestSubscription(TestCase):
 
         self.assertTrue(User.is_subscribed(telegram_id, chat_id))
         self.assertTrue(User.is_subscribed(telegram_id2, chat_id2))
-        self.assertEqual(1, len(User.get_subscriber_not_retrieved_hours_ago(2)))
-        self.assertEqual(3, len(User.get_subscriber_not_retrieved_hours_ago(0)))
-        self.assertEqual("%s" % chat_id, User.get_chat_id(User.get_id(telegram_id)))
+        self.assertEqual(1,
+                         len(User.get_subscriber_not_retrieved_hours_ago(2)))
+        self.assertEqual(3,
+                         len(User.get_subscriber_not_retrieved_hours_ago(0)))
+        self.assertEqual("%s" % chat_id,
+                         User.get_chat_id(User.get_id(telegram_id)))
