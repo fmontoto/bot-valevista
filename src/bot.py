@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import datetime
 from functools import partial
 import logging
 from queue import Queue
@@ -9,6 +10,7 @@ import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 import time
 
+import pytz
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 from src.model_interface import User, _start, UserBadUseError
@@ -90,7 +92,7 @@ def get_by_rut(bot, update):
 def update_cache_and_reply(telegram_id, rut, reply_fn, reply_only_on_change_and_expected):
     try:
         web_parser = Web(rut, digito_verificador(rut))
-        response, from_cache = web_parser.get_parsed_results(telegram_id)
+        response, changed = web_parser.get_parsed_results(telegram_id)
     except ParsingException as e:
         reply_fn(e.public_message)
     except Exception as e:
@@ -100,7 +102,7 @@ def update_cache_and_reply(telegram_id, rut, reply_fn, reply_only_on_change_and_
         if not reply_only_on_change_and_expected:
             reply_fn(response)
             return
-        if web_parser.page_type == web_parser.EXPECTED and not from_cache:
+        if web_parser.page_type == web_parser.EXPECTED and changed:
             reply_fn(response)
 
 
@@ -143,6 +145,28 @@ def signal_handler(signum, frame):
         logger.warn("Exiting now!")
         os.exit(1)
 
+def is_a_proper_time(now):
+    """
+
+    :param now: utc time to check if is proper
+    :return:
+    """
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        now = now.replace(tzinfo=pytz.utc)
+
+    cl_tz = pytz.timezone('America/Santiago')
+    normalized_now = now.astimezone(cl_tz)
+
+    # If saturday or sunday
+    if normalized_now.weekday() > 4:
+        return False
+
+    # If between 00:00 and 9:59.
+    if normalized_now.hour < 10:
+        return False
+
+    return True
+
 def step(updater, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
     logger.info("To update queue length: %s", len(users_to_update))
@@ -159,7 +183,8 @@ def loop(updater):
         signal(sig, signal_handler)
 
     while RUNNING:
-        step(updater)
+        if is_a_proper_time(datetime.datetime.utcnow()):
+            step(updater)
         time.sleep(random.randint(5 * 60, 25 * 60)) # Between 5 and 25 minutes
     updater.stop()
 
