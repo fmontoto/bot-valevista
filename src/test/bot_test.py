@@ -1,8 +1,9 @@
 from datetime import datetime
+import unittest
 from unittest import TestCase
 from unittest.mock import MagicMock
 
-from test.model_interface_test import mock_model_interface
+from model_interface_test import mock_model_interface
 import pytz
 from src.bot import update_cache_and_reply, is_a_proper_time
 
@@ -36,3 +37,7 @@ class TestStart(TestCase):
         self.assertFalse(is_a_proper_time(datetime(2016, 12, 2, 10, 00)))
         self.assertTrue(is_a_proper_time(datetime(2016, 12, 2, 10, 00,
                         tzinfo=pytz.timezone("America/Santiago"))))
+
+
+if __name__ == '__main__':
+    unittest.main()
