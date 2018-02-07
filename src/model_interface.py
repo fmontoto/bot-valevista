@@ -11,17 +11,12 @@ _session = None
 
 logger = logging.getLogger(__name__)
 
-
-def _start():
+def _start(in_memory: bool=False):
     global _session
-    engine = create_engine('sqlite:///db.sqlite')
-    models.Base.metadata.create_all(engine)
-    _session = scoped_session(sessionmaker(bind=engine))
-
-
-def _memory_start():
-    global _session
-    engine = create_engine('sqlite:///:memory:')
+    if in_memory:
+        engine = create_engine('sqlite:///:memory:')
+    else:
+        engine = create_engine('sqlite:///db.sqlite')
     models.Base.metadata.create_all(engine)
     _session = scoped_session(sessionmaker(bind=engine))
 

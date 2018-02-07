@@ -1,4 +1,5 @@
 from contextlib import ContextDecorator
+import unittest
 from unittest import TestCase
 
 import sqlalchemy
@@ -11,16 +12,16 @@ from src.model_interface import User, CachedResult, UserBadUseError
 
 class mock_model_interface(ContextDecorator):
     def __enter__(self):
-        model_interface._memory_start()
+        model_interface._start(in_memory=True)
 
     def __exit__(self, *exc):
-        model_interface._start()
+        model_interface._start(in_memory=False)
 
 
 class TestModelInterface(TestCase):
 
     def setUp(self):
-        model_interface._memory_start()
+        model_interface._start(in_memory=True)
 
     def tearDown(self):
         model_interface._start()
@@ -59,7 +60,7 @@ class TestModelInterface(TestCase):
 class TestSubscription(TestCase):
 
     def setUp(self):
-        model_interface._memory_start()
+        model_interface._start(in_memory=True)
 
     def tearDown(self):
         model_interface._start()
@@ -124,3 +125,6 @@ class TestSubscription(TestCase):
                          len(User.get_subscriber_not_retrieved_hours_ago(0)))
         self.assertEqual("%s" % chat_id,
                          User.get_chat_id(User.get_id(telegram_id)))
+
+if __name__ == '__main__':
+    unittest.main()

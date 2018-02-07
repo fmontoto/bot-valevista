@@ -15,6 +15,26 @@ class ParsingException(Exception):
         super(ParsingException, self).__init__(public_message)
         self.public_message = public_message
 
+class DownloadWebPage(object):
+    def __init__(self, url):
+        self.url = url
+        self.download()
+
+    def download(self):
+        try:
+            r = requests.get(self.url)
+        except requests.exceptions.RequestException as e:
+            logger.exception("Connection error")
+            raise ParsingException(("Error de conexion, (probablemente) "
+                                    "estamos trabajando para solucionarlo."))
+        if(r.status_code != 200):
+            logger.warn("Couldn't get the page, error %s:%s" % (r.status_code,
+                                                                r.reason))
+            raise ParsingException(("Error de conexion, (probablemente) "
+                                    "estamos trabajando para solucionarlo."))
+
+        self.raw_page = r.text
+
 
 class Web(object):
     URL = ("http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?"
@@ -71,20 +91,6 @@ class Web(object):
             logging.exception("parsed_results")
             return result, True
 
-    def download(self):
-        try:
-            r = requests.get(self.url)
-        except requests.exceptions.RequestException as e:
-            logger.exception("Connection error")
-            raise ParsingException(("Error de conexion, (probablemente) "
-                                    "estamos trabajando para solucionarlo."))
-        if(r.status_code != 200):
-            logger.warn("Couldn't get the page, error %s:%s" % (r.status_code,
-                                                                r.reason))
-            raise ParsingException(("Error de conexion, (probablemente) "
-                                    "estamos trabajando para solucionarlo."))
-
-        self.raw_page = r.text
 
     """ Testing purposes."""
     def load_page(self, path):
