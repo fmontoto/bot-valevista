@@ -3,7 +3,8 @@ from collections import OrderedDict
 import logging
 import requests
 
-from .model_interface import CachedResult, User
+from src.model_interface import CachedResult, User
+from src.utils import Rut
 
 import bs4
 
@@ -15,14 +16,21 @@ class ParsingException(Exception):
         super(ParsingException, self).__init__(public_message)
         self.public_message = public_message
 
-class DownloadWebPage(object):
-    def __init__(self, url):
-        self.url = url
-        self.download()
 
-    def download(self):
+class WebRetriever(object):
+    def retrieve(self):
+        raise NotImplementedError()
+
+
+class WebPageDownloader(WebRetriever):
+    URL = ("http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?"
+           "rut1=60910000&dv1=1&canal=BCW&tipo=2&BEN_DIAS=90"
+           "&mediopago=99&rut2=%s&dv2=%s")
+
+    def retrieve(self, rut: Rut):
+        url = self.URL % (rut.rut_sin_digito, rut.digito_verificador)
         try:
-            r = requests.get(self.url)
+            r = requests.get(url)
         except requests.exceptions.RequestException as e:
             logger.exception("Connection error")
             raise ParsingException(("Error de conexion, (probablemente) "
@@ -33,26 +41,22 @@ class DownloadWebPage(object):
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
 
-        self.raw_page = r.text
+        return r.text
 
 
 class Web(object):
-    URL = ("http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?"
-           "rut1=60910000&dv1=1&canal=BCW&tipo=2&BEN_DIAS=90"
-           "&mediopago=99&rut2=%s&dv2=%s")
-
     # Tipos de pagina
     EXPECTED = 1
     CLIENTE = 2
     NO_PAGOS = 3
     INTENTE_NUEVAMENTE = 4
 
-    def __init__(self, rut, digito):
+    def __init__(self, rut: Rut, web_retriever: WebRetriever=WebRetriever):
         self.rut = rut
-        self.digito = digito
         self.raw_page = ""
         self.results = None
         self.url = self.URL % (self.rut, self.digito)
+        self.retriever = web_retriever()
 
     def get_results(self):
         # This if is only for testing purposes, if the page was loaded

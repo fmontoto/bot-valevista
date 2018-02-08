@@ -61,6 +61,9 @@ class ValeVistaBot(object):
             "nueva funcionalidad."
     )
 
+    _NO_RUT_MSG =  ("Tu rut no está almacenado, envía '/set <RUT>' para "
+                    "almacenarlo.")
+
     # Command handlers.
     def start(self, bot, update):
         name = (update.message.from_user.first_name or
@@ -78,8 +81,7 @@ class ValeVistaBot(object):
         if rut_:
             return update_cache_and_reply(telegram_id, rut_,
                                         update.message.reply_text, False)
-        update.message.reply_text(
-                "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
+        update.message.reply_text(self._NO_RUT_MSG)
 
     def set_rut(self, bot, update):
         spl = update.message.text.split(' ')

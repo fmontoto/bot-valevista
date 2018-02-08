@@ -117,8 +117,15 @@ class TestBot(TestCase):
         self.assertEqual(self.stored, expected)
 
     def testGetNoRutSet(self):
-        self.assertTrue(False)
+        expected = ValeVistaBot._NO_RUT_MSG
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        self.assertEqual(self.stored, expeted)
 
+    def testGetStoredRut(self):
+        self.assertFalse(True)
+
+    def testGetRut(self):
+        self.assertFalse(True)
 
 
 class TestStart(TestCase):
