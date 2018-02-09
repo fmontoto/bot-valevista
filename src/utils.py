@@ -55,7 +55,7 @@ class Rut(object):
     @classmethod
     def _remove_digito_verificador_puntos(cls, rut: str) -> Optional[str]:
         # This regex defines a RUT.
-        reg = re.compile('^[0-9]{1,2}\.?[0-9]{3}\.?[0-9]{3}(-?[Kk0-9])$')
+        reg = re.compile('^[0-9]{1,2}\.?[0-9]{3}\.?[0-9]{3}(-[Kk0-9])$')
         match = reg.match(rut)
         # Check if run_input is a rut.
         if not match:

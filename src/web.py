@@ -1,7 +1,10 @@
 import codecs
 from collections import OrderedDict
+import datetime
+from enum import Enum
 import logging
 import requests
+from typing import List
 
 from src.model_interface import CachedResult, User
 from src.utils import Rut
@@ -17,8 +20,53 @@ class ParsingException(Exception):
         self.public_message = public_message
 
 
+class TypeOfEvent(Enum):
+    VIGENTE_EN_RENDICION = 1 # El vale vista va a estar en la fecha que dice.
+    VIGENTE_RENDIDO = 2 # Listo para retirar.
+    PAGADO_RENDIDO = 3 # Ya fue cobrado/retirado.
+
+
+class Event(object):
+    def __init__(self, event_type: TypeOfEvent, date: datetime.date):
+        self.event_type = event_type
+        self.date = date
+
+
+class TypeOfWebResult(Enum):
+    NO_ERROR = 1
+    CLIENTE = 2
+    INTENTE_NUEVAMENTE = 4
+
+
+class WebResult(object):
+    _CLIENTE_ERROR = ("Eres cliente del banco?, no es posible consultar tu "
+                      "informacion por la interfaz publica.")
+    _INTENTE_NUEVAMENTE_ERROR = (
+            "La pagina del banco tiene un error y dice que intentes "
+            "nuevamente. Intenta nuevamente en unas horas")
+    def __init__(self, type_result: TypeOfWebResult, events: List[Event]):
+        self._type_result = type_result
+        self._events = events
+
+    def get_type(self):
+        return self._type_result
+
+    def get_events(self):
+        return self._events
+
+    def get_error(self):
+        type_result = self._type_result
+        if type_result == TypeOfWebResult.CLIENTE:
+            return self._CLIENTE_ERROR
+        elif type_result == TypeOfWebResult.INTENTE_NUEVAMENTE:
+            return self._INTENTE_NUEVAMENTE_ERROR
+        elif type_result == TypeOfWebResult.NO_ERROR:
+            return ''
+        raise ValueError('Unknown type of result')
+
+
 class WebRetriever(object):
-    def retrieve(self):
+    def retrieve(self, rut: Rut):
         raise NotImplementedError()
 
 
@@ -44,6 +92,97 @@ class WebPageDownloader(WebRetriever):
         return r.text
 
 
+class Parser(object):
+    @classmethod
+    def _parse_date(cls, date: str) -> datetime.date:
+        split = date.split('/')
+        try:
+            day = int(split[0])
+            month = int(split[1])
+            year = int(split[2])
+            return datetime.date(year, month, day)
+        except:
+            logger.error('Could not parse a date: %s', date)
+            raise ParsingException('No pude parsear la pagina del banco.')
+
+    @classmethod
+    def _parse_event_type(cls, event_type: str) -> TypeOfEvent:
+        event = event_type.lower()
+        if 'pagado' in event and 'rendido' in event:
+            return TypeOfEvent.PAGADO_RENDIDO
+        if 'vigente' in event and 'rendido' in event:
+            return TypeOfEvent.VIGENTE_RENDIDO
+        if ('vigente' in event and
+                ('rendición' in event or 'rendicion' in event)):
+            return TypeOfEvent.VIGENTE_EN_RENDICION
+        logger.error('Unable to parse event_type:%s', event_type)
+        raise ParsingException('No pude parsear la respuesta del banco :(')
+
+    @classmethod
+    def _parse_event(cls, events):
+        ret = []
+        for event in events:
+            date = cls._parse_date(event['Fecha de Pago'])
+            event_type = cls._parse_event_type(event['Estado'])
+
+    @classmethod
+    def _parse(cls, raw_page):
+        soup = bs4.BeautifulSoup(raw_page, "html.parser")
+        table = soup.body.form.find_all(
+                'table')[1].find_all('tr')[5].find_all('tr')
+        if table[0].td.text != '\nFecha de Pago':
+            logger.error('Unexpected webpage:\n%s', raw_page)
+            raise ParsingException('No pude parsear la respuesta del banco.')
+        events = []
+        for i in range(1, len(table) - 1):
+            data = table[i].find_all('td')
+            events.append(
+                    OrderedDict([('Fecha de Pago', data[0].text.strip('\n')),
+                                 ('Medio de Pago', data[1].text.strip('\n')),
+                                 ('Oficina/Banco', data[2].text.strip('\n')),
+                                 ('Estado', data[3].text.strip('\n'))]))
+        return events
+
+    @classmethod
+    def parse(cls, raw_page):
+        if "Para clientes del Banco de Chile" in raw_page:
+            return WebResult(TypeOfWebResult.CLIENTE, [])
+        if "Por ahora no podemos atenderle." in raw_page:
+            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
+        if "Actualmente no registra pagos a su favor" in raw_page:
+            return WebResult(TypeOfWebResult.NO_ERROR, [])
+        events = cls._parse(raw_page)
+
+        try:
+            self.results = self._parse_clientes(soup)
+            self.page_type = self.CLIENTE
+            logger.info("Parseada [%s]", self.page_type)
+            return self.results
+        except Exception as e:
+            pass
+
+        try:
+            self.results = self._parse_no_pagos(soup)
+            self.page_type = self.NO_PAGOS
+            logger.info("Parseada[%s]", self.page_type)
+            return self.results
+        except Exception as e:
+            pass
+
+        try:
+            self.results = self._parse_error_intente_nuevamente(soup)
+            self.page_type = self.INTENTE_NUEVAMENTE
+            logger.info("Parseada[%s]", self.page_type)
+            return self.results
+        except Exception as e:
+            pass
+        logger.error("Error parsing, no se pudo parsear la pagina [%s]: %s",
+                     self.url, self.raw_page)
+        raise ParsingException(("Nadie ha escrito un parser para esta pagina "
+                                "aun :( reportalo en github!"))
+
+
+
 class Web(object):
     # Tipos de pagina
     EXPECTED = 1
@@ -56,7 +195,7 @@ class Web(object):
         self.raw_page = ""
         self.results = None
         self.url = self.URL % (self.rut, self.digito)
-        self.retriever = web_retriever()
+        self.retriever = web_retriever
 
     def get_results(self):
         # This if is only for testing purposes, if the page was loaded
@@ -95,65 +234,6 @@ class Web(object):
             logging.exception("parsed_results")
             return result, True
 
-
-    """ Testing purposes."""
-    def load_page(self, path):
-        with codecs.open(path, "r", encoding='utf-8', errors='ignore') as f:
-            self.raw_page = f.read()
-
-    def parse(self):
-        soup = bs4.BeautifulSoup(self.raw_page, "html.parser")
-        # TODO esto es horrible, factorizar de alguna forma brillante
-        try:
-            self.results = self._parse_expected(soup)
-            self.page_type = self.EXPECTED
-            logger.info("Parseada [%s]", self.page_type)
-            return self.results
-        except Exception:
-            pass
-
-        try:
-            self.results = self._parse_clientes(soup)
-            self.page_type = self.CLIENTE
-            logger.info("Parseada [%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-
-        try:
-            self.results = self._parse_no_pagos(soup)
-            self.page_type = self.NO_PAGOS
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-
-        try:
-            self.results = self._parse_error_intente_nuevamente(soup)
-            self.page_type = self.INTENTE_NUEVAMENTE
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-        logger.error("Error parsing, no se pudo parsear la pagina [%s]: %s",
-                     self.url, self.raw_page)
-        raise ParsingException(("Nadie ha escrito un parser para esta pagina "
-                                "aun :( reportalo en github!"))
-
-    def _parse_expected(self, soup):
-        table = soup.body.form.find_all(
-                'table')[1].find_all('tr')[5].find_all('tr')
-        if table[0].td.text != '\nFecha de Pago':
-            raise ParsingException("Probablemente no es una pagina expected!")
-        resultados = []
-        for i in range(1, len(table) - 1):
-            data = table[i].find_all('td')
-            resultados.append(
-                    OrderedDict([('Fecha de Pago', data[0].text.strip('\n')),
-                                 ('Medio de Pago', data[1].text.strip('\n')),
-                                 ('Oficina/Banco', data[2].text.strip('\n')),
-                                 ('Estado', data[3].text.strip('\n'))]))
-        return resultados
 
     def _parse_clientes(self, soup):
         if "Para clientes del Banco de Chile" not in self.raw_page:
