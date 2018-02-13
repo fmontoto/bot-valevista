@@ -6,6 +6,7 @@ from typing import Optional, Type, Union
 import re
 import pytz
 
+
 class Rut(object):
     def __init__(self, rut: int, digito_verificador: str):
         self.rut_sin_digito = rut
@@ -14,6 +15,7 @@ class Rut(object):
     def __str__(self):
         return '%d-%s' % (self._sin_digito_verificador,
                           self._digito_verificador)
+
     def __repr__(self):
         return self.__str__()
 
@@ -47,7 +49,7 @@ class Rut(object):
         expected_digito_ver = cls._digito_verificador(rut_sin_digito)
         # Si el digito verificador estaba malo.
         if (rut_input[-1].lower() != expected_digito_ver and
-            rut_input[-1] != rut_sin_digito[-1]):
+                rut_input[-1] != rut_sin_digito[-1]):
             return None
 
         return rut_sin_digito
@@ -63,8 +65,9 @@ class Rut(object):
         dot_and_leading_zero_removed = re.sub('\.', '',  rut).lstrip('0')
         if not match.group(1):
             return dot_and_leading_zero_removed
-        else: # Remover el digito verificador con guion, si es que tiene
+        else:  # Remover el digito verificador con guion, si es que tiene
             return dot_and_leading_zero_removed[:-len(match.group(1))]
+
 
 # Check whether is a proper time to send an automated message to an user.
 def is_a_proper_time(now: datetime.datetime) -> bool:
@@ -88,4 +91,3 @@ def is_a_proper_time(now: datetime.datetime) -> bool:
         return bool(False)
 
     return bool(True)
-

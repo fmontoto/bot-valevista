@@ -25,7 +25,6 @@ class TestRutClassMethods(TestCase):
         self.assertEqual('2343234',
                          Rut._remove_digito_verificador_puntos("2343234k"))
 
-
     def test_remove_digito_verificador_puntos(self):
         self.assertEqual("12444333",
                          Rut._remove_digito_verificador_puntos("12.444.333-3"))
@@ -52,6 +51,7 @@ class TestRutObject(TestCase):
         rut = Rut.build_rut('2343234K')
         self.assertEqual(2343234, rut._sin_digito_verificador)
         self.assertEqual('k', rut._digito_verificador)
+
 
 if __name__ == '__main__':
     unittest.main()

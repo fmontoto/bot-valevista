@@ -5,8 +5,8 @@ python:
 
 install:
     - "pip install -r requirements.txt"
-    - "pip install pep8"
+    - "pip install pycodestyle"
 
 script:
-    - "python -m pep8 */*.py"
+    - "python -m pycodestyle src"
     - "python -m unittest discover -p *_test.py -v"

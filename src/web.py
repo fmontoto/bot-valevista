@@ -21,9 +21,10 @@ class ParsingException(Exception):
 
 
 class TypeOfEvent(Enum):
-    VIGENTE_EN_RENDICION = 1 # El vale vista va a estar en la fecha que dice.
-    VIGENTE_RENDIDO = 2 # Listo para retirar.
-    PAGADO_RENDIDO = 3 # Ya fue cobrado/retirado.
+    VIGENTE_EN_RENDICION = 1  # El vale vista va a estar en la fecha que dice.
+    VIGENTE_RENDIDO = 2  # Listo para retirar.
+    PAGADO_RENDIDO = 3  # Ya fue cobrado/retirado.
+    DEPRECATED_NOT_PARSED = 4
 
 
 class Event(object):
@@ -32,10 +33,16 @@ class Event(object):
         self.date = date
 
 
+class DeprecatedEvent(Event):
+    def __init__(self, string_representation):
+        self.string_representation = string_representation
+        self.event_type = TypeOfEvent.DEPRECATED_NOT_PARSED
+
+
 class TypeOfWebResult(Enum):
     NO_ERROR = 1
     CLIENTE = 2
-    INTENTE_NUEVAMENTE = 4
+    INTENTE_NUEVAMENTE = 3
 
 
 class WebResult(object):
@@ -44,6 +51,7 @@ class WebResult(object):
     _INTENTE_NUEVAMENTE_ERROR = (
             "La pagina del banco tiene un error y dice que intentes "
             "nuevamente. Intenta nuevamente en unas horas")
+
     def __init__(self, type_result: TypeOfWebResult, events: List[Event]):
         self._type_result = type_result
         self._events = events
@@ -101,7 +109,7 @@ class Parser(object):
             month = int(split[1])
             year = int(split[2])
             return datetime.date(year, month, day)
-        except:
+        except Exception:
             logger.error('Could not parse a date: %s', date)
             raise ParsingException('No pude parsear la pagina del banco.')
 
@@ -119,11 +127,13 @@ class Parser(object):
         raise ParsingException('No pude parsear la respuesta del banco :(')
 
     @classmethod
-    def _parse_event(cls, events):
+    def _parse_events(cls, events):
         ret = []
         for event in events:
             date = cls._parse_date(event['Fecha de Pago'])
             event_type = cls._parse_event_type(event['Estado'])
+            ret.append(Event(event_type, date))
+        return ret
 
     @classmethod
     def _parse(cls, raw_page):
@@ -146,41 +156,38 @@ class Parser(object):
     @classmethod
     def parse(cls, raw_page):
         if "Para clientes del Banco de Chile" in raw_page:
+            logger.debug('Parsed cliente.')
             return WebResult(TypeOfWebResult.CLIENTE, [])
         if "Por ahora no podemos atenderle." in raw_page:
+            logger.debug('Parsed pagina no disponible.')
             return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
         if "Actualmente no registra pagos a su favor" in raw_page:
+            logger.debug('Parsed pagina vacia.')
             return WebResult(TypeOfWebResult.NO_ERROR, [])
-        events = cls._parse(raw_page)
 
         try:
-            self.results = self._parse_clientes(soup)
-            self.page_type = self.CLIENTE
-            logger.info("Parseada [%s]", self.page_type)
-            return self.results
+            events = cls._parse(raw_page)
         except Exception as e:
-            pass
+            logger.exception(e)
+            logger.error('While trying to parse \n%s\n', raw_page)
+            raise e
 
+        # Experimental, errors here are not fatal.
         try:
-            self.results = self._parse_no_pagos(soup)
-            self.page_type = self.NO_PAGOS
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
+            parsed_events = cls._parse_events(events)
         except Exception as e:
-            pass
+            logger.exception(e)
+            loggin.error('While trying to parse:\n%s\n', raw_page)
+        else:
+            logger.info(parsed_events)
 
-        try:
-            self.results = self._parse_error_intente_nuevamente(soup)
-            self.page_type = self.INTENTE_NUEVAMENTE
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-        logger.error("Error parsing, no se pudo parsear la pagina [%s]: %s",
-                     self.url, self.raw_page)
-        raise ParsingException(("Nadie ha escrito un parser para esta pagina "
-                                "aun :( reportalo en github!"))
-
+        ret = []
+        for e in events:
+            this_result = []
+            for k, v in e.items():
+                this_result.append("%s: %s\n" % (k.strip(), v.strip()))
+            ret.append(DeprecatedEvent("".join(this_result).rstrip("\n")))
+        return WebResult(TypeOfWebResult.NO_ERROR, ret)
 
 
 class Web(object):
@@ -233,22 +240,3 @@ class Web(object):
         except Exception as e:
             logging.exception("parsed_results")
             return result, True
-
-
-    def _parse_clientes(self, soup):
-        if "Para clientes del Banco de Chile" not in self.raw_page:
-            raise ParsingException("Probablemente no es una pag de clientes")
-        return [("Eres cliente del banco?, no es posible consultar tu "
-                 "informacion por la interfaz publica.")]
-
-    def _parse_no_pagos(self, soup):
-        if "Actualmente no registra pagos a su favor" not in self.raw_page:
-            raise ParsingException("Probablemente no es una pagina sin pagos")
-        return [("Actualmente no registras pagos a tu favor.")]
-
-    def _parse_error_intente_nuevamente(self, soup):
-        if "Por ahora no podemos atenderle." not in self.raw_page:
-            raise ParsingException(
-                    "Probablemente no es una de error intente nuevamente")
-        return [("La pagina del banco tiene un error y dice que intentes "
-                 "nuevamente. Intenta nuevamente en unas horas")]

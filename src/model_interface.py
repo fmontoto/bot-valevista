@@ -11,6 +11,7 @@ _session = None
 
 logger = logging.getLogger(__name__)
 
+
 def _start(in_memory: bool=False):
     global _session
     if in_memory:
@@ -38,9 +39,9 @@ class UserBadUseError(ValeVistaBotException):
 def commit_rollback(session_):
     try:
         session_.commit()
-    except:
+    except Exception as e:
         session_.rollback()
-        raise
+        raise e
     finally:
         pass
         # session_.remove()

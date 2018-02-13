@@ -10,7 +10,9 @@ import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 import time
 
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Dispatcher
+from telegram.ext import CommandHandler, Dispatcher, Filters, MessageHandler
+from telegram.ext import Updater
+
 
 from src.model_interface import User, _start, UserBadUseError
 import src.utils
@@ -37,6 +39,7 @@ HOURS_TO_UPDATE = 33
 RUNNING = True
 SUBSCRIBED = Queue()
 
+
 class ValeVistaBot(object):
     _START_MSG = (
             "Hola %s, soy el bot de los vale vista pagados por la UChile. "
@@ -47,8 +50,8 @@ class ValeVistaBot(object):
             "Si quieres que recuerde tu rut para consultarlo recurrentemente, "
             "envia: /set TU_RUT. Luego consúltalo enviando /get. \n"
             "Una vez que guardes tu rut envía /subscribe y revisaré "
-            "periódicamente la página del banco para notificarte si hay nuevos "
-            "vale vista."
+            "periódicamente la página del banco para notificarte si hay "
+            "nuevos vale vista."
     )
     _HELP_MSG = (
             "Estoy para ayudarte, si no sabes como utilizar o para que sirve "
@@ -61,15 +64,14 @@ class ValeVistaBot(object):
             "nueva funcionalidad."
     )
 
-    _NO_RUT_MSG =  ("Tu rut no está almacenado, envía '/set <RUT>' para "
-                    "almacenarlo.")
+    _NO_RUT_MSG = ("Tu rut no está almacenado, envía '/set <RUT>' para "
+                   "almacenarlo.")
 
     # Command handlers.
     def start(self, bot, update):
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
         update.message.reply_text(self._START_MSG % name)
-
 
     def help(self, bot, update):
         update.message.reply_text(self._HELP_MSG)
@@ -80,13 +82,14 @@ class ValeVistaBot(object):
         rut_ = User.get_rut(telegram_id)
         if rut_:
             return update_cache_and_reply(telegram_id, rut_,
-                                        update.message.reply_text, False)
+                                          update.message.reply_text, False)
         update.message.reply_text(self._NO_RUT_MSG)
 
     def set_rut(self, bot, update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
-            update.message.reply_text("Especifica el rut para poder guardarlo.")
+            update.message.reply_text(
+                    "Especifica el rut para poder guardarlo.")
         rut = normalize_rut(spl[1])
 
         if not normalize_rut(spl[1]):
@@ -97,7 +100,7 @@ class ValeVistaBot(object):
                     normalize_rut(spl[1]))
         update.message.reply_text(
             ("Rut:%s-%s guardado correctamente\n Envía /get para consultar "
-            "directamente" % (rut, digito_verificador(rut))))
+             "directamente" % (rut, digito_verificador(rut))))
 
     def subscribe(self, bot, update):
         try:
@@ -117,7 +120,8 @@ class ValeVistaBot(object):
 
     def unsubscribe(self, bot, update):
         try:
-            User.unsubscribe(update.message.from_user.id, update.message.chat.id)
+            User.unsubscribe(update.message.from_user.id,
+                             update.message.chat.id)
         except UserBadUseError as e:
             logger.warning(e.public_message)
             update.message.reply_text(e.public_message)
@@ -129,28 +133,23 @@ class ValeVistaBot(object):
     def debug(self, bot, update):
         logger.info("Debug: %s, %s" % (bot, update))
 
-
     def error(self, bot, update, error):
         logger.warn("Update %s caused error %s" % (update, error))
 
-    #Non command messages
+    # Non command messages
     def msg(self, bot, update):
         # Log every msg received.
-        print("ASDASDAS")
         logger.info("MSG:[%s]", update.message.text)
         is_rut = normalize_rut(update.message.text)
         if not is_rut:
             echo(bot, update)
         else:
             update_cache_and_reply(update.message.from_user.id, is_rut,
-                                update.message.reply_text, False)
+                                   update.message.reply_text, False)
 
     # Non telegram handlers.
     def echo(self, bot, update):
         update.message.reply_text(update.message.text)
-
-
-
 
 
 def update_cache_and_reply(telegram_id, rut, reply_fn,
@@ -172,8 +171,6 @@ def update_cache_and_reply(telegram_id, rut, reply_fn,
             reply_fn(response)
 
 
-
-
 def signal_handler(signum, frame):
     global RUNNING
     if RUNNING:
@@ -181,6 +178,7 @@ def signal_handler(signum, frame):
     else:
         logger.warn("Exiting now!")
         os.exit(1)
+
 
 def step(updater, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
@@ -204,6 +202,7 @@ def loop(updater):
             step(updater)
         time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
     updater.stop()
+
 
 def add_handlers(dispatcher: Dispatcher, bot: ValeVistaBot) -> None:
     dispatcher.add_handler(CommandHandler("start", bot.start))
@@ -231,6 +230,7 @@ def main():
     updater.start_webhook(listen="0.0.0.0", port=443,
                           url_path="/bot-valevista")
     loop(updater)
+
 
 if __name__ == "__main__":
     main()

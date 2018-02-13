@@ -38,14 +38,17 @@ class MockDispatcherOld(object):
     def dispatch_cmd(cmd_name: str, msg: Optional[str]):
         pass
 
-
     def dispatch(self):
         pass
+
 
 class MockDispatcher(telegram.ext.Dispatcher):
     pass
 
+
 id = 0
+
+
 def get_id():
     global id
     id += 1
@@ -84,12 +87,12 @@ class TestBot(TestCase):
     def store_received_string(self, recv_str: str):
         self.stored = recv_str
 
-
-    def simpleCommand(self, name:str, cb_reply=None,
+    def simpleCommand(self, name: str, cb_reply=None,
                       message: Optional[str]=None):
         msg = telegram.Message(get_id(), from_user=self.user1,
                                date=datetime.now(), chat=self.chat,
-                               text='/%s' % name, reply_to_message=self.dummyCb, bot=self.bot)
+                               text='/%s' % name,
+                               reply_to_message=self.dummyCb, bot=self.bot)
         update = telegram.Update(get_id(), message=msg)
         update.message.reply_text = cb_reply
         return update
@@ -102,17 +105,19 @@ class TestBot(TestCase):
         update = telegram.Update(get_id(), message=msg)
         return update
 
-
     def testStart(self):
         # Substring from start command
-        expected = "Hola %s, soy el bot de los vale vista" % self.user1.first_name
-        update = self.simpleCommand('start', cb_reply=self.store_received_string)
+        expected = "Hola %s, soy el bot de los vale vista" % (
+                self.user1.first_name)
+        update = self.simpleCommand('start',
+                                    cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertContains(self.stored, expected)
 
     def testHelp(self):
         expected = ValeVistaBot._HELP_MSG
-        update = self.simpleCommand('help', cb_reply=self.store_received_string)
+        update = self.simpleCommand('help',
+                                    cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
 
