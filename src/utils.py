@@ -13,25 +13,36 @@ class Rut(object):
         self.digito_verificador = digito_verificador
 
     def __str__(self):
-        return '%d-%s' % (self._sin_digito_verificador,
-                          self._digito_verificador)
+        # Do this with locale
+        tmp = "{:,}-{}".format(self.rut_sin_digito, self.digito_verificador)
+        return tmp.replace(',', '.')
 
     def __repr__(self):
         return self.__str__()
+
+    def __eq__(self, other):
+        return (type(self) == type(other) and
+                self.rut_sin_digito == other.rut_sin_digito and
+                self.digito_verificador == other.digito_verificador)
 
     @classmethod
     def build_rut(cls, rut: str):
         """Crea un rut a partir de un string.
 
-        Hace todo lo posible por construir un rut, acepta strings con y sin
-        puntos separadores y digito verificador. Si no detecta el input como
-        rut retorna None.
+        Hace todo lo posible por construir un rut, guin i digito verificador
+        son requeridos. Si no detecta el input como rut retorna None.
         """
         rut_sin_digito = cls._normalize_rut(rut)
         if rut_sin_digito is None:
             return None
         num_rut = int(rut_sin_digito)
         return Rut(num_rut, cls._digito_verificador(rut_sin_digito))
+
+    @classmethod
+    def _build_rut_sin_digito(cls, rut: str):
+        """Crea un rut a partir de un string sin digito verificador."""
+        digito = cls._digito_verificador(rut)
+        return Rut(int(rut), digito)
 
     # Robado desde https://gist.github.com/rbonvall/464824
     @classmethod
@@ -48,8 +59,7 @@ class Rut(object):
             return None
         expected_digito_ver = cls._digito_verificador(rut_sin_digito)
         # Si el digito verificador estaba malo.
-        if (rut_input[-1].lower() != expected_digito_ver and
-                rut_input[-1] != rut_sin_digito[-1]):
+        if (rut_input[-1].lower() != str(expected_digito_ver)):
             return None
 
         return rut_sin_digito

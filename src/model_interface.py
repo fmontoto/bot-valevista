@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
+from src.utils import Rut
 from . import models
 
 
@@ -41,15 +42,13 @@ def commit_rollback(session_):
         session_.commit()
     except Exception as e:
         session_.rollback()
+        logger.exception(e)
         raise e
-    finally:
-        pass
-        # session_.remove()
 
 
 class User(object):
     @classmethod
-    def _get_user(cls, telegram_id, create=True):
+    def _get_user(cls, telegram_id: int, create: bool =True):
         session = _session()
         user = session.query(
                 models.User).filter_by(telegram_id=telegram_id).first()
@@ -62,7 +61,7 @@ class User(object):
         return user
 
     @classmethod
-    def get_id(cls, telegram_id, create=True):
+    def get_id(cls, telegram_id: int, create: bool =True):
         """
         :param telegram_id: telegram id of the user to get.
         :param create: If true and the telegram id does not exists,
@@ -83,16 +82,16 @@ class User(object):
     def set_rut(cls, telegram_id, rut):
         session = _session()
         user = cls._get_user(telegram_id, True)
-        if user.rut == rut:
+        if user.rut == rut.rut_sin_digito:
             return
-        user.rut = rut
+        user.rut = rut.rut_sin_digito
         session.commit()
 
     @classmethod
     def get_rut(cls, telegram_id):
         user = cls._get_user(telegram_id, True)
         if user.rut:
-            return user.rut
+            return Rut._build_rut_sin_digito(user.rut)
         return None
 
     @classmethod
@@ -158,19 +157,19 @@ class CachedResult(object):
     def get(cls, user_id, rut):
         session = _session()
         result = session.query(
-                models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
+                models.CachedResult).filter_by(user_id=user_id, rut=rut.rut_sin_digito).all()
         if not result or result[0].retrieved < (
                 datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
             return None
         return result[0].result
 
     @classmethod
-    def update(cls, user_id, rut, result):
+    def update(cls, user_id, rut: Rut, result):
         session = _session()
         c_result = session.query(
-                models.CachedResult).filter_by(user_id=user_id, rut=rut).all()
+                models.CachedResult).filter_by(user_id=user_id, rut=rut.rut_sin_digito).all()
         if not c_result:
-            c_result = models.CachedResult(rut=rut, user_id=user_id,
+            c_result = models.CachedResult(rut=rut.rut_sin_digito, user_id=user_id,
                                            result=result)
             session.add(c_result)
             session.commit()

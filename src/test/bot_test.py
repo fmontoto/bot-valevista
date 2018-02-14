@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from src.test.model_interface_test import mock_model_interface
 from src.bot import ValeVistaBot
 from src.bot import add_handlers
-from src.utils import is_a_proper_time
+from src.utils import is_a_proper_time, Rut
 from src import model_interface
 import pytz
 from src.bot import update_cache_and_reply
@@ -67,6 +67,8 @@ class TestBot(TestCase):
                                   first_name='john')
         add_handlers(self.dispatcher, self.bot)
         self.pass_test = True
+        self.rut = Rut.build_rut('2343234-k')
+        self.rut_non_std_str = '2343.234-k'
 
     @staticmethod
     def dummyCb(*args, **kwargs):
@@ -92,7 +94,7 @@ class TestBot(TestCase):
         msg = telegram.Message(get_id(), from_user=self.user1,
                                date=datetime.now(), chat=self.chat,
                                text='/%s' % name,
-                               reply_to_message=self.dummyCb, bot=self.bot)
+                               reply_to_message=cb_reply, bot=self.bot)
         update = telegram.Update(get_id(), message=msg)
         update.message.reply_text = cb_reply
         return update
@@ -124,7 +126,28 @@ class TestBot(TestCase):
     def testGetNoRutSet(self):
         expected = ValeVistaBot._NO_RUT_MSG
         update = self.simpleCommand('get', cb_reply=self.store_received_string)
-        self.assertEqual(self.stored, expeted)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self.stored, expected)
+
+    def testSetEmptyRut(self):
+        expected = ValeVistaBot._SET_EMPTY_RUT
+        update = self.simpleCommand('set', cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self.stored, expected)
+
+    def testSetInvalidRut(self):
+        expected = ValeVistaBot._SET_INVALID_RUT
+        update = self.simpleCommand('set NO_VALID_RUT',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self.stored, expected)
+
+    def testSetRut(self):
+        expected = ValeVistaBot._SET_RUT % str(self.rut)
+        update = self.simpleCommand('set %s' % self.rut_non_std_str,
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self.stored, expected)
 
     def testGetStoredRut(self):
         self.assertFalse(True)

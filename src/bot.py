@@ -15,6 +15,7 @@ from telegram.ext import Updater
 
 
 from src.model_interface import User, _start, UserBadUseError
+from src.utils import Rut
 import src.utils
 from src.web import ParsingException, Web
 
@@ -67,6 +68,14 @@ class ValeVistaBot(object):
     _NO_RUT_MSG = ("Tu rut no está almacenado, envía '/set <RUT>' para "
                    "almacenarlo.")
 
+    _SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
+                "directamente")
+
+    _SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
+
+    _SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
+                        "separado por un guión.")
+
     # Command handlers.
     def start(self, bot, update):
         name = (update.message.from_user.first_name or
@@ -88,19 +97,19 @@ class ValeVistaBot(object):
     def set_rut(self, bot, update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
-            update.message.reply_text(
-                    "Especifica el rut para poder guardarlo.")
-        rut = normalize_rut(spl[1])
+            update.message.reply_text(self._SET_EMPTY_RUT)
 
-        if not normalize_rut(spl[1]):
-            update.message.reply_text("Rut no valido.")
+        rut = Rut.build_rut(spl[1])
+
+        if rut is None:
+            update.message.reply_text(self._SET_INVALID_RUT)
             return
-        User.set_rut(update.message.from_user.id, normalize_rut(spl[1]))
+
+        User.set_rut(update.message.from_user.id, rut)
+
         logger.info("User %s set rut %s", update.message.from_user.id,
-                    normalize_rut(spl[1]))
-        update.message.reply_text(
-            ("Rut:%s-%s guardado correctamente\n Envía /get para consultar "
-             "directamente" % (rut, digito_verificador(rut))))
+                    Rut._normalize_rut(spl[1]))
+        update.message.reply_text(self._SET_RUT % rut)
 
     def subscribe(self, bot, update):
         try:
