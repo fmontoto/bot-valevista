@@ -328,3 +328,138 @@ AssertionError: False is not true
 2018-02-06 22:22:54,890 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as <__main__.MockDispatcher object at 0x104aeebe0>
 2018-02-06 22:24:00,856 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as <__main__.MockDispatcher object at 0x11060ac88>
 2018-02-06 22:24:00,862 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,062 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as <src.test.bot_test.MockDispatcher object at 0x10ca66ef0>
+2018-02-15 18:44:12,063 - src.bot - INFO - Get 1
+2018-02-15 18:44:12,070 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,075 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,078 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,081 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,082 - telegram.ext.dispatcher - ERROR - An uncaught error was raised while processing the update
+Traceback (most recent call last):
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/telegram/ext/dispatcher.py", line 270, in process_update
+    handler.handle_update(update, self)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/telegram/ext/commandhandler.py", line 100, in handle_update
+    return self.callback(dispatcher.bot, update, **optional_args)
+  File "/Users/fmontoto/Projects/bot-valevista/src/bot.py", line 102, in set_rut
+    rut = Rut.build_rut(spl[1])
+IndexError: list index out of range
+2018-02-15 18:44:12,088 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,092 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,096 - src.bot - INFO - User 21 set rut 2343234
+2018-02-15 18:44:12,099 - telegram.ext.dispatcher - DEBUG - Setting singleton dispatcher as None
+2018-02-15 18:44:12,226 - src.model_interface - ERROR - (sqlite3.IntegrityError) UNIQUE constraint failed: subscribed_users.user_id [SQL: 'INSERT INTO subscribed_users (user_id, chat_id) VALUES (?, ?)'] [parameters: (1, 5658)]
+Traceback (most recent call last):
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1182, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/default.py", line 469, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.IntegrityError: UNIQUE constraint failed: subscribed_users.user_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/fmontoto/Projects/bot-valevista/src/model_interface.py", line 42, in commit_rollback
+    session_.commit()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 874, in commit
+    self.transaction.commit()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 461, in commit
+    self._prepare_impl()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 441, in _prepare_impl
+    self.session.flush()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2137, in flush
+    self._flush(objects)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2257, in _flush
+    transaction.rollback(_capture_exception=True)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/langhelpers.py", line 60, in __exit__
+    compat.reraise(exc_type, exc_value, exc_tb)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 186, in reraise
+    raise value
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2221, in _flush
+    flush_context.execute()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/unitofwork.py", line 389, in execute
+    rec.execute(self)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/unitofwork.py", line 548, in execute
+    uow
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/persistence.py", line 181, in save_obj
+    mapper, table, insert)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/persistence.py", line 835, in _emit_insert_statements
+    execute(statement, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 945, in execute
+    return meth(self, multiparams, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/sql/elements.py", line 263, in _execute_on_connection
+    return connection._execute_clauseelement(self, multiparams, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1053, in _execute_clauseelement
+    compiled_sql, distilled_params
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1189, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1393, in _handle_dbapi_exception
+    exc_info
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 202, in raise_from_cause
+    reraise(type(exception), exception, tb=exc_tb, cause=cause)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 185, in reraise
+    raise value.with_traceback(tb)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1182, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/default.py", line 469, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: subscribed_users.user_id [SQL: 'INSERT INTO subscribed_users (user_id, chat_id) VALUES (?, ?)'] [parameters: (1, 5658)]
+2018-02-15 18:44:12,247 - src.model_interface - ERROR - (sqlite3.IntegrityError) UNIQUE constraint failed: subscribed_users.chat_id [SQL: 'INSERT INTO subscribed_users (user_id, chat_id) VALUES (?, ?)'] [parameters: (2, 5657)]
+Traceback (most recent call last):
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1182, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/default.py", line 469, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.IntegrityError: UNIQUE constraint failed: subscribed_users.chat_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/fmontoto/Projects/bot-valevista/src/model_interface.py", line 42, in commit_rollback
+    session_.commit()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 874, in commit
+    self.transaction.commit()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 461, in commit
+    self._prepare_impl()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 441, in _prepare_impl
+    self.session.flush()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2137, in flush
+    self._flush(objects)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2257, in _flush
+    transaction.rollback(_capture_exception=True)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/langhelpers.py", line 60, in __exit__
+    compat.reraise(exc_type, exc_value, exc_tb)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 186, in reraise
+    raise value
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/session.py", line 2221, in _flush
+    flush_context.execute()
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/unitofwork.py", line 389, in execute
+    rec.execute(self)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/unitofwork.py", line 548, in execute
+    uow
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/persistence.py", line 181, in save_obj
+    mapper, table, insert)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/orm/persistence.py", line 835, in _emit_insert_statements
+    execute(statement, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 945, in execute
+    return meth(self, multiparams, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/sql/elements.py", line 263, in _execute_on_connection
+    return connection._execute_clauseelement(self, multiparams, params)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1053, in _execute_clauseelement
+    compiled_sql, distilled_params
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1189, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1393, in _handle_dbapi_exception
+    exc_info
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 202, in raise_from_cause
+    reraise(type(exception), exception, tb=exc_tb, cause=cause)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/util/compat.py", line 185, in reraise
+    raise value.with_traceback(tb)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/base.py", line 1182, in _execute_context
+    context)
+  File "/Users/fmontoto/Projects/bot-valevista/env/lib/python3.6/site-packages/sqlalchemy/engine/default.py", line 469, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: subscribed_users.chat_id [SQL: 'INSERT INTO subscribed_users (user_id, chat_id) VALUES (?, ?)'] [parameters: (2, 5657)]
+2018-02-15 18:44:12,254 - src.web - DEBUG - Parsed cliente.
+2018-02-15 18:44:12,261 - src.web - INFO - [<src.web.Event object at 0x10ca14208>, <src.web.Event object at 0x10cd539e8>, <src.web.Event object at 0x10cd53a90>]
+2018-02-15 18:44:12,261 - src.web - DEBUG - Parsed pagina no disponible.
+2018-02-15 18:44:12,262 - src.web - DEBUG - Parsed pagina vacia.

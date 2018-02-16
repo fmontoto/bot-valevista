@@ -82,16 +82,19 @@ class ValeVistaBot(object):
                 update.message.from_user.username)
         update.message.reply_text(self._START_MSG % name)
 
+    # Sends a help message to the user.
     def help(self, bot, update):
         update.message.reply_text(self._HELP_MSG)
 
+    # Query the service using the stored rut.
     def get_rut(self, bot, update):
         telegram_id = update.message.from_user.id
         logger.info("Get %s", telegram_id)
         rut_ = User.get_rut(telegram_id)
         if rut_:
-            return update_cache_and_reply(telegram_id, rut_,
-                                          update.message.reply_text, False)
+            return self.query_the_bank_and_reply(telegram_id, rut_,
+                                                 update.message.reply_text,
+                                                 False)
         update.message.reply_text(self._NO_RUT_MSG)
 
     def set_rut(self, bot, update):
@@ -153,31 +156,31 @@ class ValeVistaBot(object):
         if not is_rut:
             echo(bot, update)
         else:
-            update_cache_and_reply(update.message.from_user.id, is_rut,
-                                   update.message.reply_text, False)
+            self.query_the_bank_and_reply(update.message.from_user.id, is_rut,
+                                          update.message.reply_text, False)
 
     # Non telegram handlers.
     def echo(self, bot, update):
         update.message.reply_text(update.message.text)
 
 
-def update_cache_and_reply(telegram_id, rut, reply_fn,
-                           reply_only_on_change_and_expected):
-    try:
-        web_parser = Web(rut, digito_verificador(rut))
-        response, changed = web_parser.get_parsed_results(telegram_id)
-    except ParsingException as e:
-        reply_fn(e.public_message)
-    except Exception as e:
-        logger.error(e)
-        reply_fn(("Ups!, un error inesperado ha ocurrido, "
-                  "lo solucionaremos a la brevedad (?)"))
-    else:
-        if not reply_only_on_change_and_expected:
-            reply_fn(response)
-            return
-        if web_parser.page_type == web_parser.EXPECTED and changed:
-            reply_fn(response)
+    def query_the_bank_and_reply(self, telegram_id, rut, reply_fn,
+                                 reply_only_on_change_and_expected):
+        try:
+            web_parser = Web(rut, digito_verificador(rut))
+            response, changed = web_parser.get_parsed_results(telegram_id)
+        except ParsingException as e:
+            reply_fn(e.public_message)
+        except Exception as e:
+            logger.error(e)
+            reply_fn(("Ups!, un error inesperado ha ocurrido, "
+                    "lo solucionaremos a la brevedad (?)"))
+        else:
+            if not reply_only_on_change_and_expected:
+                reply_fn(response)
+                return
+            if web_parser.page_type == web_parser.EXPECTED and changed:
+                reply_fn(response)
 
 
 def signal_handler(signum, frame):
@@ -195,7 +198,7 @@ def step(updater, hours=HOURS_TO_UPDATE):
     if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(
                 0, len(users_to_update) - 1)]
-        update_cache_and_reply(
+        self.query_the_bank_and_reply(
                 user_to_update.telegram_id, user_to_update.rut,
                 partial(updater.bot.sendMessage,
                         User.get_chat_id(user_to_update.id)), True)
