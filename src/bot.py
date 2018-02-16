@@ -9,14 +9,17 @@ import random
 import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 import time
+from typing import Text
 
 from telegram.ext import CommandHandler, Dispatcher, Filters, MessageHandler
 from telegram.ext import Updater
+import telegram
 
 
 from src.model_interface import User, _start, UserBadUseError
 from src.utils import Rut
 import src.utils
+from src import web
 from src.web import ParsingException, Web
 
 # Enable logging
@@ -38,7 +41,7 @@ TOKEN = os.getenv("BOT_TOKEN", None)
 HOURS_TO_UPDATE = 33
 
 RUNNING = True
-SUBSCRIBED = Queue()
+SUBSCRIBED: Queue = Queue()
 
 
 class ValeVistaBot(object):
@@ -76,18 +79,24 @@ class ValeVistaBot(object):
     _SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
                         "separado por un guión.")
 
+    def __init__(self, web_retriever: web.WebRetriever=None) -> None:
+        if web_retriever:
+            self._web_retriever = web.WebPageDownloader()
+        else:
+            self._web_retriever = web_retriever
+
     # Command handlers.
-    def start(self, bot, update):
+    def start(self, bot, update: telegram.Update):
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
         update.message.reply_text(self._START_MSG % name)
 
     # Sends a help message to the user.
-    def help(self, bot, update):
+    def help(self, bot, update: telegram.Update):
         update.message.reply_text(self._HELP_MSG)
 
     # Query the service using the stored rut.
-    def get_rut(self, bot, update):
+    def get_rut(self, bot, update: telegram.Update):
         telegram_id = update.message.from_user.id
         logger.info("Get %s", telegram_id)
         rut_ = User.get_rut(telegram_id)
@@ -97,7 +106,7 @@ class ValeVistaBot(object):
                                                  False)
         update.message.reply_text(self._NO_RUT_MSG)
 
-    def set_rut(self, bot, update):
+    def set_rut(self, bot, update: telegram.Update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
             update.message.reply_text(self._SET_EMPTY_RUT)
@@ -114,7 +123,7 @@ class ValeVistaBot(object):
                     Rut._normalize_rut(spl[1]))
         update.message.reply_text(self._SET_RUT % rut)
 
-    def subscribe(self, bot, update):
+    def subscribe(self, bot, update: telegram.Update):
         try:
             User.subscribe(update.message.from_user.id, update.message.chat.id)
         except UserBadUseError as e:
@@ -130,7 +139,7 @@ class ValeVistaBot(object):
                  "/get \n Para eliminar tu subscripción, envía el comando "
                  "/unsubscribe."))
 
-    def unsubscribe(self, bot, update):
+    def unsubscribe(self, bot, update: telegram.Update):
         try:
             User.unsubscribe(update.message.from_user.id,
                              update.message.chat.id)
@@ -142,21 +151,21 @@ class ValeVistaBot(object):
             update.message.reply_text(("Ya no estás subscrito, para volver a "
                                        "estarlo, envía /subscribe"))
 
-    def debug(self, bot, update):
+    def debug(self, bot, update: telegram.Update):
         logger.info("Debug: %s, %s" % (bot, update))
 
-    def error(self, bot, update, error):
+    def error(self, bot, update: telegram.Update, error):
         logger.warn("Update %s caused error %s" % (update, error))
 
     # Non command messages
-    def msg(self, bot, update):
+    def msg(self, bot, update: telegram.Update):
         # Log every msg received.
         logger.info("MSG:[%s]", update.message.text)
-        is_rut = normalize_rut(update.message.text)
-        if not is_rut:
-            echo(bot, update)
+        rut = Rut.build_rut(update.message.text)
+        if rut:
+            self.echo(bot, update)
         else:
-            self.query_the_bank_and_reply(update.message.from_user.id, is_rut,
+            self.query_the_bank_and_reply(update.message.from_user.id, rut,
                                           update.message.reply_text, False)
 
     # Non telegram handlers.
@@ -164,15 +173,15 @@ class ValeVistaBot(object):
         update.message.reply_text(update.message.text)
 
 
-    def query_the_bank_and_reply(self, telegram_id, rut, reply_fn,
-                                 reply_only_on_change_and_expected):
+    def query_the_bank_and_reply(self, telegram_id: int, rut: Rut, reply_fn,
+                                 reply_only_on_change_and_expected: bool):
         try:
-            web_parser = Web(rut, digito_verificador(rut))
+            web_parser = Web(rut, self._web_retriever)
             response, changed = web_parser.get_parsed_results(telegram_id)
         except ParsingException as e:
             reply_fn(e.public_message)
         except Exception as e:
-            logger.error(e)
+            logger.exception("Error:")
             reply_fn(("Ups!, un error inesperado ha ocurrido, "
                     "lo solucionaremos a la brevedad (?)"))
         else:

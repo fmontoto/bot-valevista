@@ -28,13 +28,13 @@ class TypeOfEvent(Enum):
 
 
 class Event(object):
-    def __init__(self, event_type: TypeOfEvent, date: datetime.date):
+    def __init__(self, event_type: TypeOfEvent, date: datetime.date) -> None:
         self.event_type = event_type
         self.date = date
 
 
 class DeprecatedEvent(Event):
-    def __init__(self, string_representation):
+    def __init__(self, string_representation) -> None:
         self.string_representation = string_representation
         self.event_type = TypeOfEvent.DEPRECATED_NOT_PARSED
 

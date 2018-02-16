@@ -17,30 +17,6 @@ import pytz
 from telegram.ext import CommandHandler, Handler, MessageHandler
 
 
-class MockDispatcherOld(object):
-    def __init__(self):
-        self._cmd_handlers = dict()
-        self._msg_handler = None
-        self._error_handler = None
-
-    def add_handler(self, handler: Handler):
-        if type(handler) is MessageHandler:
-            self._msg_handlers = handler
-        elif type(handler) is CommandHandler:
-            self._cmd_handlers[handler.command] = handler
-        else:
-            raise TypeError("Not supported handler.")
-
-    def add_error_handler(self, error_handler):
-        self._error_handler = error_handler
-
-    def dispatch_cmd(cmd_name: str, msg: Optional[str]):
-        pass
-
-    def dispatch(self):
-        pass
-
-
 class MockDispatcher(telegram.ext.Dispatcher):
     pass
 
@@ -153,7 +129,8 @@ class TestBot(TestCase):
 class TestFunctionalBot(TestCase):
     def setUp(self):
         model_interface._start(True)
-        self.bot = ValeVistaBot()
+        self.retriever = WebPageFromFileRetriever()
+        self.bot = ValeVistaBot(self.retriever)
         self.queue = queue.Queue()
         self.dispatcher = MockDispatcher(self.bot, self.queue)
         self.user1 = telegram.User(id=get_id(), first_name='john',
