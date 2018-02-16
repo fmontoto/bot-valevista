@@ -10,6 +10,6 @@ install:
     - "pip install mypy"
 
 script:
-    - "mypy --ignore-missing-imports src/*\.py"
+    - "mypy --ignore-missing-imports src/*\\.py"
     - "python -m pycodestyle src"
     - "python -m unittest discover -p *_test.py -v"
