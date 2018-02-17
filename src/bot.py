@@ -32,9 +32,9 @@ logger.setLevel(logging.DEBUG)
 
 # Rotating file handler, rotates every 4 mondays.
 try:
-    _log_handler: logging.Handler = (
-            logging.handlers.TimedRotatingFileHandler('log/bot.log', when='W0',
-                                                      interval=4, utc=True))
+    _log_handler = logging.handlers.TimedRotatingFileHandler(
+            'log/bot.log', when='W0', interval=4,
+            utc=True)  # type: logging.Handler
     _log_handler.setLevel(logging.DEBUG)
 except FileNotFoundError:
     print('log dir not found for file logging')

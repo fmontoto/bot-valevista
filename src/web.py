@@ -69,7 +69,7 @@ class WebResult(object):
     def __init__(
             self, type_result: TypeOfWebResult, events: List[Event]) -> None:
         self._type_result = type_result
-        self._events: List[Event] = events
+        self._events = events  # type: List[Event]
 
     def get_type(self):
         return self._type_result
