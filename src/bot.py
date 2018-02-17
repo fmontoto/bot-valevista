@@ -32,8 +32,9 @@ logger.setLevel(logging.DEBUG)
 
 # Rotating file handler, rotates every 4 mondays.
 try:
-    _log_handler = logging.handlers.TimedRotatingFileHandler(
-            'log/bot.log', when='W0', interval = 4, utc=True)
+    _log_handler: logging.Handler = (
+            logging.handlers.TimedRotatingFileHandler('log/bot.log', when='W0',
+                                                      interval=4, utc=True))
     _log_handler.setLevel(logging.DEBUG)
 except FileNotFoundError:
     print('log dir not found for file logging')
@@ -168,7 +169,7 @@ class ValeVistaBot(object):
         except Exception as e:
             logger.exception("Error:")
             if reply_when == self.ReplyWhen.ALWAYS:
-               reply_fn(Messages.INTERNAL_ERROR)
+                reply_fn(Messages.INTERNAL_ERROR)
             return
 
         if reply_when == self.ReplyWhen.ALWAYS:

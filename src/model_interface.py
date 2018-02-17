@@ -159,8 +159,8 @@ class User(object):
 
 class Cache(object):
     def __init__(self,
-            exp_time: datetime.timedelta=datetime.timedelta(hours=2)
-            ) -> None:
+                 exp_time: datetime.timedelta=datetime.timedelta(
+                     hours=2)) -> None:
         self._exp_time = exp_time
 
     def get(self, user_id, rut):

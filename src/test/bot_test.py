@@ -265,9 +265,9 @@ class TestFunctionalBot(TestCase):
         self.setRut()
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
-        self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
-                                          self.store_received_string,
-                                          ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
         self.assertEqual(expected, self.stored)
 
     def testQueryTheBankAndReplyCache(self):
@@ -289,8 +289,7 @@ class TestFunctionalBot(TestCase):
                                           ValeVistaBot.ReplyWhen.ALWAYS)
         self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
 
-    def testQueryTheBankAndReply(self):
-        expected = self._EXPECTED_ON_SUCCESS
+    def testQueryTheBankAndReplyErrorSecondQueryAlways(self):
         # Inmediate time of expiration for cache.
         cache = model_interface.Cache(datetime.timedelta(0))
         bot = ValeVistaBot(self.retriever, cache)
@@ -299,16 +298,55 @@ class TestFunctionalBot(TestCase):
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
         bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
-                                          self.store_received_string,
-                                          ValeVistaBot.ReplyWhen.ALWAYS)
+                                     self.store_received_string,
+                                     ValeVistaBot.ReplyWhen.ALWAYS)
         self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('cliente.html'))
-        import pdb; pdb.set_trace()
         bot.query_the_bank_and_reply(
                 self.user1_telegram_id, self.rut, self.store_received_string,
                 ValeVistaBot.ReplyWhen.ALWAYS)
         self.assertEqual(Messages.CLIENTE_ERROR, self.stored)
+
+    def testQueryTheBankAndReplyErrorSecondQueryIfUseful(self):
+        # Inmediate time of expiration for cache.
+        cache = model_interface.Cache(datetime.timedelta(0))
+        bot = ValeVistaBot(self.retriever, cache)
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                     self.store_received_string,
+                                     ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.stored = None
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('cliente.html'))
+        bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.assertEqual(None, self.stored)
+
+    def testQueryTheBankAndReplyTwoErrorSecondQueryIfUseful(self):
+        # Inmediate time of expiration for cache.
+        cache = model_interface.Cache(datetime.timedelta(0))
+        bot = ValeVistaBot(self.retriever, cache)
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('cliente.html'))
+        bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                     self.store_received_string,
+                                     ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(Messages.CLIENTE_ERROR, self.stored)
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('Error.htm'))
+        self.stored = None
+        bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.assertEqual(None, self.stored)
 
 
 class TestStart(TestCase):

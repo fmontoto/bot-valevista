@@ -1,7 +1,7 @@
 class Messages(object):
-    ########################################
-    ####### Command success message. #######
-    ########################################
+    # ####################################### #
+    # ###### Command success message. ####### #
+    # ####################################### #
     # On start command.
     START_MSG = (
             "Hola %s, soy el bot de los vale vista pagados por la UChile. "
@@ -38,9 +38,9 @@ class Messages(object):
     UNSUBSCRIBED = (
             "Ya no estás subscrito, para volver a estarlo, envía /subscribe.")
 
-    ########################################
-    ######### User errors messages. ########
-    ########################################
+    # ####################################### #
+    # ######## User errors messages. ######## #
+    # ####################################### #
 
     NO_RUT_MSG = (
             "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
@@ -60,21 +60,20 @@ class Messages(object):
 
     ALREADY_SUBSCRIBED = "Ya estás registrado."
 
-
-    ########################################
-    ####### Web parser err messages. #######
-    ########################################
+    # ####################################### #
+    # ###### Web parser err messages. ####### #
+    # ####################################### #
 
     CLIENTE_ERROR = ("Eres cliente del banco?, no es posible consultar tu "
-                      "informacion por la interfaz publica.")
+                     "informacion por la interfaz publica.")
 
     INTENTE_NUEVAMENTE_ERROR = (
             "La página del banco retornó con error y dice que intentes "
             "nuevamente. Intenta nuevamente en unas horas")
 
-    ########################################
-    ####### Internal error messages. #######
-    ########################################
+    # ####################################### #
+    # ###### Internal error messages. ####### #
+    # ####################################### #
 
     INTERNAL_ERROR = ("¡Ups! Un error inesperado ha ocurrido, lo "
                       "solucionaremos a la brevedad (?)")

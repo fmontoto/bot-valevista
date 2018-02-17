@@ -35,7 +35,7 @@ class Event(object):
 
 
 class RawEvent(Event):
-    def __init__(self, ordered_dict = Dict[str, str]) -> None:
+    def __init__(self, ordered_dict: Dict[str, str]) -> None:
         self._ordered_dict = ordered_dict
         self._str_repr = None
         self.event_type = TypeOfEvent.RAW_NOT_PARSED
@@ -48,10 +48,10 @@ class RawEvent(Event):
             self._str_repr = "".join(acc).rstrip("\n")
         return self._str_repr
 
-    def date(self) -> str:
+    def get_date(self) -> str:
         return self._ordered_dict['Fecha de Pago']
 
-    def status(self) -> str:
+    def get_status(self) -> str:
         return self._ordered_dict['Estado']
 
     def __str__(self):
@@ -69,7 +69,7 @@ class WebResult(object):
     def __init__(
             self, type_result: TypeOfWebResult, events: List[Event]) -> None:
         self._type_result = type_result
-        self._events = events
+        self._events: List[Event] = events
 
     def get_type(self):
         return self._type_result
@@ -120,9 +120,9 @@ class Parser(object):
     def _parse_date(cls, date: str) -> datetime.date:
         split = date.split('/')
         try:
-            day = int(split[0])
-            month = int(split[1])
-            year = int(split[2])
+            day = int(split[0].strip())
+            month = int(split[1].strip())
+            year = int(split[2].strip())
             return datetime.date(year, month, day)
         except Exception:
             logger.error('Could not parse a date: %s', date)
@@ -145,8 +145,8 @@ class Parser(object):
     def _raw_events_to_new_events(cls, raw_events: List[RawEvent]):
         ret = []
         for event in raw_events:
-            date = cls._parse_date(event.date())
-            event_type = cls._parse_event_type(event.status())
+            date = cls._parse_date(event.get_date())
+            event_type = cls._parse_event_type(event.get_status())
             ret.append(Event(event_type, date))
         return ret
 
@@ -184,14 +184,14 @@ class Parser(object):
 
     @classmethod
     def _single_cache_string_to_raw_event(cls, string: str) -> RawEvent:
-        d = OrderedDict()
+        d: Dict[str, str] = OrderedDict()
         lines = string.split("\n")
         if len(lines) != 4:
-            raise ParsingException('4 lines expected, got %d.', len(lines))
-        d['Fecha de Pago'] = lines[0].lstrip('Fecha de Pago ')
-        d['Medio de Pago'] = lines[1].lstrip('Medio de Pago ')
-        d['Oficina/Banco'] = lines[2].lstrip('Oficina/Banco ')
-        d['Estado'] = lines[3].lstrip('Estado ')
+            raise ParsingException('4 lines expected, got %d.' % len(lines))
+        d['Fecha de Pago'] = lines[0].lstrip('Fecha de Pago: ')
+        d['Medio de Pago'] = lines[1].lstrip('Medio de Pago: ')
+        d['Oficina/Banco'] = lines[2].lstrip('Oficina/Banco: ')
+        d['Estado'] = lines[3].lstrip('Estado: ')
         return RawEvent(d)
 
     @classmethod
@@ -199,10 +199,10 @@ class Parser(object):
         if Messages.CLIENTE_ERROR in cache_string:
             return WebResult(TypeOfWebResult.CLIENTE, [])
         if Messages.INTENTE_NUEVAMENTE_ERROR in cache_string:
-            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE)
+            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
 
         single_cache_strings = cache_string.split("\n\n")
-        raw_events = []
+        raw_events: List[Event] = []
         for s in single_cache_strings:
             raw_events.append(cls._single_cache_string_to_raw_event(s))
         return WebResult(TypeOfWebResult.NO_ERROR, raw_events)
@@ -270,7 +270,7 @@ class Web(object):
                     raw_events_web_result.get_events())
         try:
             self._cache_changed = cache.update(user_id, self.rut,
-                                                 self._old_cache_and_user_str)
+                                               self._old_cache_and_user_str)
         # Non fatal error.
         except Exception as e:
             logger.exception("Unable to update the cache")
@@ -279,7 +279,7 @@ class Web(object):
     # Must be called after retrieve returns.
     def _parse_new_results(self):
         raw_events = self.raw_events_web_result.get_events()
-        self._events = raw_events_to_new_events(raw_events)
+        self._events = Parser.raw_events_to_new_events(raw_events)
 
     def get_results(self):
         return self._old_cache_and_user_str
@@ -298,5 +298,5 @@ class Web(object):
         # If the info was already in the cache, not useful.
         if not self.did_cache_change():
             return False
-        #TODO(fmontoto): Check if there is new data by checking old cache data.
+        # TODO(fmontoto): Check if there is useful new data in the result.
         return True
