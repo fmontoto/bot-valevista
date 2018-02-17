@@ -4,7 +4,7 @@ import datetime
 from enum import Enum
 import logging
 import requests
-from typing import List
+from typing import Dict, List
 
 from src.model_interface import CachedResult, User
 from src.utils import Rut
@@ -127,16 +127,29 @@ class Parser(object):
         raise ParsingException('No pude parsear la respuesta del banco :(')
 
     @classmethod
-    def _parse_events(cls, events):
+    def _raw_events_to_new_events(cls,
+                                  raw_events: List[Dict[str, str]]):
         ret = []
-        for event in events:
+        for event in raw_events:
             date = cls._parse_date(event['Fecha de Pago'])
             event_type = cls._parse_event_type(event['Estado'])
             ret.append(Event(event_type, date))
         return ret
 
     @classmethod
-    def _parse(cls, raw_page):
+    def raw_events_to_new_events(cls, events):
+        # Experimental, errors here are not fatal.
+        try:
+            parsed_events = cls._parse_events(events)
+        except Exception as e:
+            logger.exception(e)
+            loggin.error('While trying to parse:\n%s\n', raw_page)
+        else:
+            logger.info(parsed_events)
+
+
+    @classmethod
+    def _raw_page_to_raw_events(cls, raw_page):
         soup = bs4.BeautifulSoup(raw_page, "html.parser")
         table = soup.body.form.find_all(
                 'table')[1].find_all('tr')[5].find_all('tr')
@@ -154,7 +167,41 @@ class Parser(object):
         return events
 
     @classmethod
-    def parse(cls, raw_page):
+    def _raw_event_to_single_cache_string(cls,
+                                          raw_event: Dict[str, str]) -> str:
+        ret = []
+        for k, v in raw_event.items():
+            ret.append("%s: %s\n" % (k.strip(), v.strip()))
+        return "".join(ret).rstrip("\n")
+
+    @classmethod
+    def _raw_events_to_cache_string(cls, raw_events: List[Dict[str, str]]):
+        parsed_result = []
+        for e in raw_events:
+            this_result = []
+            for k, v in e.items():
+                this_result.append("%s: %s\n" % (k.strip(), v.strip()))
+            parsed_result.append("".join(this_result).rstrip("\n"))
+        return "\n\n".join(parsed_result)
+
+    @classmethod
+    def _single_cache_string_to_raw_event(cls, string):
+        raise NotImplementedError()
+
+    @classmethod
+    def _cache_string_to_raw_events(cls, cache_string: str):
+        single_cache_strings = cache_string.split("\n\n")
+        raise NotImplementedError()
+
+    @classmethod
+    def deprecated_events_list_to_cache_string(cls, deprecated_events):
+        strings = []
+        for e in deprecated_events:
+            strings.append(e.string_representation)
+        return "\n\n".join(strings)
+
+    @classmethod
+    def parse(cls, raw_page) -> WebResult:
         if "Para clientes del Banco de Chile" in raw_page:
             logger.debug('Parsed cliente.')
             return WebResult(TypeOfWebResult.CLIENTE, [])
@@ -166,27 +213,15 @@ class Parser(object):
             return WebResult(TypeOfWebResult.NO_ERROR, [])
 
         try:
-            events = cls._parse(raw_page)
+            raw_events = cls._raw_page_to_raw_events(raw_page)
         except Exception as e:
             logger.exception(e)
             logger.error('While trying to parse \n%s\n', raw_page)
             raise e
 
-        # Experimental, errors here are not fatal.
-        try:
-            parsed_events = cls._parse_events(events)
-        except Exception as e:
-            logger.exception(e)
-            loggin.error('While trying to parse:\n%s\n', raw_page)
-        else:
-            logger.info(parsed_events)
-
         ret = []
-        for e in events:
-            this_result = []
-            for k, v in e.items():
-                this_result.append("%s: %s\n" % (k.strip(), v.strip()))
-            ret.append(DeprecatedEvent("".join(this_result).rstrip("\n")))
+        for e in raw_events:
+            ret.append(DeprecatedEvent(cls._raw_event_to_single_cache_string(e)))
         return WebResult(TypeOfWebResult.NO_ERROR, ret)
 
 
@@ -197,19 +232,36 @@ class Web(object):
     NO_PAGOS = 3
     INTENTE_NUEVAMENTE = 4
 
-    def __init__(self, rut: Rut, web_retriever: WebRetriever=WebRetriever):
+    def __init__(self, rut: Rut,
+                 web_retriever: WebRetriever=WebPageDownloader()) -> None:
         self.rut = rut
-        self.raw_page = ""
-        self.results = None
-        self.url = self.URL % (self.rut, self.digito)
-        self.retriever = web_retriever
+        self._retrieve(web_retriever)
+        try:
+            self._parse_new_results()
+        except Exception:
+            pass
+
+    def _retrieve(self, web_retriever: WebRetriever):
+        user_id = User.get_id(telegram_user_id)
+        cached_results = CachedResult.get(user_id, self.rut)
+        self.loaded_from_cache = cached_results is not None
+        if cached_results:
+            self.old_parsed_results = cached_results
+            return
+
+
+
+    # Must be called after retrieve returns.
+    def _parse_new_results(self):
+        raise NotImplementedError()
+
+        self.raw_page = web_retriever.retrieve()
+        self.loaded_from_cache = False
 
     def get_results(self):
-        # This if is only for testing purposes, if the page was loaded
-        # do not download it.
-        if not self.raw_page:
-            self.download()
-        return self.parse()
+        if not self.web_results:
+            self.web_results = Parser.parse(self.raw_page)
+        return self.web_results
 
     def get_parsed_results(self, telegram_user_id):
         """

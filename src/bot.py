@@ -68,16 +68,26 @@ class ValeVistaBot(object):
             "nueva funcionalidad."
     )
 
-    _NO_RUT_MSG = ("Tu rut no está almacenado, envía '/set <RUT>' para "
-                   "almacenarlo.")
+    _NO_RUT_MSG = (
+            "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
 
     _SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
-                "directamente")
+                "directamente.")
 
     _SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
 
     _SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
                         "separado por un guión.")
+
+    _SUBSCRIBED = (
+            "Estas subscrito, si hay cambios con respecto al último resultado "
+            "que miraste aquí, te enviaré un mensaje. Estaré revisando la "
+            "página del banco cada uno o dos días. Si la desesperación es "
+            "mucha, recuerda que puedes preguntarme con /get \n Para eliminar "
+            "tu subscripción, envía el comando /unsubscribe.")
+
+    _UNSUBSCRIBED = (
+            "Ya no estás subscrito, para volver a estarlo, envía /subscribe.")
 
     def __init__(self, web_retriever: web.WebRetriever=None) -> None:
         if web_retriever:
@@ -131,13 +141,7 @@ class ValeVistaBot(object):
             update.message.reply_text(e.public_message)
         else:
             logger.info("User %s subscribed", update.message.from_user.id)
-            update.message.reply_text(
-                ("Estas subscrito, si hay cambios con respecto al último "
-                 "resultado que miraste aquí, te enviaré un mensaje. Estaré "
-                 "revisando la página del banco cada uno o dos días. Si la "
-                 "desesperación es mucha, recuerda que puedes preguntarme con "
-                 "/get \n Para eliminar tu subscripción, envía el comando "
-                 "/unsubscribe."))
+            update.message.reply_text(self._SUBSCRIBED)
 
     def unsubscribe(self, bot, update: telegram.Update):
         try:
@@ -148,8 +152,7 @@ class ValeVistaBot(object):
             update.message.reply_text(e.public_message)
         else:
             logger.info("User %s unsubscribed", update.message.from_user.id)
-            update.message.reply_text(("Ya no estás subscrito, para volver a "
-                                       "estarlo, envía /subscribe"))
+            update.message.reply_text(self._UNSUBSCRIBED)
 
     def debug(self, bot, update: telegram.Update):
         logger.info("Debug: %s, %s" % (bot, update))

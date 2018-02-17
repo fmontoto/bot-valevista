@@ -12,6 +12,7 @@ from src.bot import ValeVistaBot
 from src.bot import add_handlers
 from src.utils import is_a_proper_time, Rut
 from src import model_interface
+from src.test import web_test
 import pytz
 
 from telegram.ext import CommandHandler, Handler, MessageHandler
@@ -129,7 +130,7 @@ class TestBot(TestCase):
 class TestFunctionalBot(TestCase):
     def setUp(self):
         model_interface._start(True)
-        self.retriever = WebPageFromFileRetriever()
+        self.retriever = web_test.WebPageFromFileRetriever()
         self.bot = ValeVistaBot(self.retriever)
         self.queue = queue.Queue()
         self.dispatcher = MockDispatcher(self.bot, self.queue)
@@ -156,13 +157,29 @@ class TestFunctionalBot(TestCase):
 
     def testGetStoredRut(self):
         self.setRut()
-
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
         update = self.simpleCommand('get', cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         print(self.stored)
         self.assertFalse(True)
 
     def testGetRut(self):
+        expected = ValeVistaBot._NO_RUT_MSG
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribe(self):
+        self.assertFalse(True)
+
+    def testSubscribeTwice(self):
+        self.assertFalse(True)
+
+    def testUnsubscribe(self):
+        self.assertFalse(True)
+
+    def testSubscribeUnsubscribe(self):
         self.assertFalse(True)
 
 

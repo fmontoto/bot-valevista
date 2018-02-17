@@ -20,12 +20,15 @@ class WebPageFromFileRetriever(web.WebRetriever):
         return web
 
 
-class TestParser(TestCase):
+def TestFilesBasePath() -> pathlib.Path:
+        web_path = pathlib.Path(os.path.dirname(inspect.getfile(web)))
+        return web_path.joinpath('test/test_pages')
+
+
+class TestPublicParser(TestCase):
     def setUp(self):
         self.retriever = WebPageFromFileRetriever()
-        # Ugly :(
-        web_path = pathlib.Path(os.path.dirname(inspect.getfile(web)))
-        self.base_path = web_path.joinpath('test/test_pages')
+        self.base_path = TestFilesBasePath()
         self.dummy_rut = Rut.build_rut('12444333-3')
 
     def testClientePage(self):
