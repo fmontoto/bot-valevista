@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from src import models, model_interface
 from src.utils import Rut
-from src.model_interface import User, CachedResult, UserBadUseError
+from src.model_interface import User, Cache, UserBadUseError
 
 
 class mock_model_interface(ContextDecorator):
@@ -36,20 +36,22 @@ class TestModelInterface(TestCase):
         model_interface._start()
 
     def testGetUserId(self):
-        self.assertRaises(ValueError, User.get_id, 2342, False)
+        self.assertRaises(model_interface.UserDoesNotExistError,
+                          User.get_id, 2342, False)
         new_id = User.get_id(2342, True)
         self.assertEqual(new_id, User.get_id(2342, False))
         self.assertNotEqual(new_id, User.get_id(2351, True))
 
-    def testCachedResult(self):
+    def testCacheResult(self):
         result = "stored_result"
         result2 = "stored_result2"
         user_id = User.get_id(9, True)
-        self.assertIsNone(CachedResult.get(user_id, self.rut1))
-        CachedResult.update(user_id, self.rut1, result)
-        self.assertEqual(result, CachedResult.get(user_id, self.rut1))
-        CachedResult.update(user_id, self.rut1, result2)
-        self.assertEqual(result2, CachedResult.get(user_id, self.rut1))
+        cache = Cache()
+        self.assertIsNone(cache.get(user_id, self.rut1))
+        cache.update(user_id, self.rut1, result)
+        self.assertEqual(result, cache.get(user_id, self.rut1))
+        cache.update(user_id, self.rut1, result2)
+        self.assertEqual(result2, cache.get(user_id, self.rut1))
 
     def testRutSetAndGet(self):
         self.assertIsNone(User.get_rut(32))
@@ -59,7 +61,8 @@ class TestModelInterface(TestCase):
         self.assertEqual(self.rut2, User.get_rut(32))
 
     def testGetTelegramId(self):
-        self.assertRaises(ValueError, User.get_telegram_id, 3)
+        self.assertRaises(model_interface.UserDoesNotExistError,
+                          User.get_telegram_id, 3)
         User.set_rut(23, self.rut1)
         user_id = User.get_id(23, False)
         self.assertEqual(23, User.get_telegram_id(user_id))
@@ -126,8 +129,9 @@ class TestSubscription(TestCase):
         User.subscribe(telegram_id2, chat_id2)
         User.subscribe(telegram_id3, chat_id3)
 
-        CachedResult.update(User.get_id(telegram_id), self.rut1, "result")
-        CachedResult.update(User.get_id(telegram_id2), self.rut2, "result2")
+        cache = Cache()
+        cache.update(User.get_id(telegram_id), self.rut1, "result")
+        cache.update(User.get_id(telegram_id2), self.rut2, "result2")
 
         self.assertTrue(User.is_subscribed(telegram_id, chat_id))
         self.assertTrue(User.is_subscribed(telegram_id2, chat_id2))

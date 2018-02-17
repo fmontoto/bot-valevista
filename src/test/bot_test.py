@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 from typing import Optional
 import unittest
 from unittest import TestCase
@@ -7,9 +7,10 @@ import telegram
 import queue
 from concurrent.futures import ThreadPoolExecutor
 
-from src.test.model_interface_test import mock_model_interface
+from src.test.model_interface_test import mock_model_interface, User
 from src.bot import ValeVistaBot
 from src.bot import add_handlers
+from src import bot
 from src.utils import is_a_proper_time, Rut
 from src import model_interface
 from src.messages import Messages
@@ -40,7 +41,7 @@ def simpleCommand(bot, name: str, user: telegram.User, chat: telegram.Chat,
                   cb_reply=None,
                   message: Optional[str]=None) -> telegram.Update:
     msg = telegram.Message(get_id(), from_user=user,
-                           date=datetime.now(), chat=chat,
+                           date=datetime.datetime.now(), chat=chat,
                            text='/%s' % name,
                            reply_to_message=cb_reply, bot=bot)
     update = telegram.Update(get_id(), message=msg)
@@ -83,7 +84,7 @@ class TestBot(TestCase):
     def simpleMessage(self, message: Optional[str]=None,
                       cb_reply=dummyCb):
         msg = telegram.Message(get_id(), from_user=self.user1,
-                               date=datetime.now(), chat=self.chat,
+                               date=datetime.datetime.now(), chat=self.chat,
                                text=message, reply_to_message=cb_reply)
         update = telegram.Update(get_id(), message=msg)
         return update
@@ -132,14 +133,33 @@ class TestBot(TestCase):
 
 
 class TestFunctionalBot(TestCase):
+    _EXPECTED_ON_SUCCESS = (
+            "Fecha de Pago: 28/10/2016\n"
+            "Medio de Pago: Abono en Cuenta Corriente de Otros Bancos\n"
+            "Oficina/Banco: BCO. CRED. E INVERSIONES\n"
+            "Estado: Pagado / Rendido\n"
+            "\n"
+            "Fecha de Pago: 30/09/2016\n"
+            "Medio de Pago: Abono en Cuenta Corriente de Otros Bancos\n"
+            "Oficina/Banco: BCO. CRED. E INVERSIONES\n"
+            "Estado: Pagado / Rendido\n"
+            "\n"
+            "Fecha de Pago: 31/08/2016\n"
+            "Medio de Pago: Abono en Cuenta Corriente de Otros Bancos\n"
+            "Oficina/Banco: BCO. CRED. E INVERSIONES\n"
+            "Estado: Pagado / Rendido"
+    )
+
     def setUp(self):
         model_interface._start(True)
         self.retriever = web_test.WebPageFromFileRetriever()
         self.bot = ValeVistaBot(self.retriever)
         self.queue = queue.Queue()
         self.dispatcher = MockDispatcher(self.bot, self.queue)
-        self.user1 = telegram.User(id=get_id(), first_name='john',
-                                   username='ujohn', is_bot=False)
+        self.user1_telegram_id = get_id()
+        self.user1 = telegram.User(id=self.user1_telegram_id,
+                                   first_name='john', username='ujohn',
+                                   is_bot=False)
         self.chat = telegram.Chat(get_id(), type='private', username='ujohn',
                                   first_name='john')
         add_handlers(self.dispatcher, self.bot)
@@ -220,13 +240,75 @@ class TestFunctionalBot(TestCase):
 
     # Test getting results.
     def testGetStoredRut(self):
+        expected = self._EXPECTED_ON_SUCCESS
         self.setRut()
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
         update = self.simpleCommand('get', cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
-        # print(self.stored)
-        self.assertFalse(True)
+        self.assertEqual(expected, self.stored)
+
+    def testSimpleQueryTheBankAndReply(self):
+        expected = self._EXPECTED_ON_SUCCESS
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                          self.store_received_string,
+                                          ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(expected, self.stored)
+
+    def testQueryTheBankAndReply(self):
+        expected = self._EXPECTED_ON_SUCCESS
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                          self.store_received_string,
+                                          ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.assertEqual(expected, self.stored)
+
+    def testQueryTheBankAndReplyCache(self):
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                          self.store_received_string,
+                                          ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.stored = None
+        self.bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.assertEqual(None, self.stored)
+        self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                          self.store_received_string,
+                                          ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+
+    def testQueryTheBankAndReply(self):
+        expected = self._EXPECTED_ON_SUCCESS
+        # Inmediate time of expiration for cache.
+        cache = model_interface.Cache(datetime.timedelta(0))
+        bot = ValeVistaBot(self.retriever, cache)
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
+                                          self.store_received_string,
+                                          ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('cliente.html'))
+        import pdb; pdb.set_trace()
+        bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.ALWAYS)
+        self.assertEqual(Messages.CLIENTE_ERROR, self.stored)
 
 
 class TestStart(TestCase):
@@ -239,15 +321,22 @@ class TestStart(TestCase):
         pass
 
     def testProperTime(self):
-        self.assertTrue(is_a_proper_time(datetime(2016, 12, 2, 14, 00)))
-        self.assertTrue(is_a_proper_time(datetime(2016, 12, 2, 23, 00)))
-        self.assertTrue(is_a_proper_time(datetime(2016, 12, 2, 18, 00)))
-        self.assertTrue(is_a_proper_time(datetime(2016, 12, 3, 00, 00)))
+        self.assertTrue(
+                is_a_proper_time(datetime.datetime(2016, 12, 2, 14, 00)))
+        self.assertTrue(
+                is_a_proper_time(datetime.datetime(2016, 12, 2, 23, 00)))
+        self.assertTrue(
+                is_a_proper_time(datetime.datetime(2016, 12, 2, 18, 00)))
+        self.assertTrue(
+                is_a_proper_time(datetime.datetime(2016, 12, 3, 00, 00)))
 
-        self.assertFalse(is_a_proper_time(datetime(2016, 12, 4, 14, 00)))
-        self.assertFalse(is_a_proper_time(datetime(2016, 12, 3, 14, 00)))
-        self.assertFalse(is_a_proper_time(datetime(2016, 12, 2, 10, 00)))
-        self.assertTrue(is_a_proper_time(datetime(2016, 12, 2, 10, 00,
+        self.assertFalse(
+                is_a_proper_time(datetime.datetime(2016, 12, 4, 14, 00)))
+        self.assertFalse(
+                is_a_proper_time(datetime.datetime(2016, 12, 3, 14, 00)))
+        self.assertFalse
+        (is_a_proper_time(datetime.datetime(2016, 12, 2, 10, 00)))
+        self.assertTrue(is_a_proper_time(datetime.datetime(2016, 12, 2, 10, 00,
                         tzinfo=pytz.timezone("America/Santiago"))))
 
 

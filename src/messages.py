@@ -1,4 +1,8 @@
 class Messages(object):
+    ########################################
+    ####### Command success message. #######
+    ########################################
+    # On start command.
     START_MSG = (
             "Hola %s, soy el bot de los vale vista pagados por la UChile. "
             "Actualmente estoy en construcción.\n"
@@ -12,6 +16,7 @@ class Messages(object):
             "nuevos vale vista."
     )
 
+    # On help command.
     HELP_MSG = (
             "Estoy para ayudarte, si no sabes como utilizar o para que sirve "
             "este bot, envia /start.\n"
@@ -23,17 +28,6 @@ class Messages(object):
             "nueva funcionalidad."
     )
 
-    NO_RUT_MSG = (
-            "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
-
-    SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
-               "directamente.")
-
-    SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
-
-    SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
-                       "separado por un guión.")
-
     SUBSCRIBED = (
             "Estas subscrito, si hay cambios con respecto al último resultado "
             "que miraste aquí, te enviaré un mensaje. Estaré revisando la "
@@ -44,6 +38,20 @@ class Messages(object):
     UNSUBSCRIBED = (
             "Ya no estás subscrito, para volver a estarlo, envía /subscribe.")
 
+    ########################################
+    ######### User errors messages. ########
+    ########################################
+
+    NO_RUT_MSG = (
+            "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
+
+    SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
+               "directamente.")
+
+    SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
+
+    SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
+                       "separado por un guión.")
     UNSUBSCRIBE_NON_SUBSCRIBED = "No estás subscrito."
 
     SUBSCRIBE_NO_RUT = (
@@ -51,3 +59,22 @@ class Messages(object):
             "utiliza /set <RUT> para registrar un rut.")
 
     ALREADY_SUBSCRIBED = "Ya estás registrado."
+
+
+    ########################################
+    ####### Web parser err messages. #######
+    ########################################
+
+    CLIENTE_ERROR = ("Eres cliente del banco?, no es posible consultar tu "
+                      "informacion por la interfaz publica.")
+
+    INTENTE_NUEVAMENTE_ERROR = (
+            "La página del banco retornó con error y dice que intentes "
+            "nuevamente. Intenta nuevamente en unas horas")
+
+    ########################################
+    ####### Internal error messages. #######
+    ########################################
+
+    INTERNAL_ERROR = ("¡Ups! Un error inesperado ha ocurrido, lo "
+                      "solucionaremos a la brevedad (?)")

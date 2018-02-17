@@ -6,7 +6,8 @@ import logging
 import requests
 from typing import Dict, List
 
-from src.model_interface import CachedResult, User
+from src.messages import Messages
+from src.model_interface import Cache, User
 from src.utils import Rut
 
 import bs4
@@ -24,7 +25,7 @@ class TypeOfEvent(Enum):
     VIGENTE_EN_RENDICION = 1  # El vale vista va a estar en la fecha que dice.
     VIGENTE_RENDIDO = 2  # Listo para retirar.
     PAGADO_RENDIDO = 3  # Ya fue cobrado/retirado.
-    DEPRECATED_NOT_PARSED = 4
+    RAW_NOT_PARSED = 4
 
 
 class Event(object):
@@ -33,10 +34,28 @@ class Event(object):
         self.date = date
 
 
-class DeprecatedEvent(Event):
-    def __init__(self, string_representation) -> None:
-        self.string_representation = string_representation
-        self.event_type = TypeOfEvent.DEPRECATED_NOT_PARSED
+class RawEvent(Event):
+    def __init__(self, ordered_dict = Dict[str, str]) -> None:
+        self._ordered_dict = ordered_dict
+        self._str_repr = None
+        self.event_type = TypeOfEvent.RAW_NOT_PARSED
+
+    def string_representation(self):
+        if self._str_repr is None:
+            acc = []
+            for k, v in self._ordered_dict.items():
+                acc.append("%s: %s\n" % (k.strip(), v.strip()))
+            self._str_repr = "".join(acc).rstrip("\n")
+        return self._str_repr
+
+    def date(self) -> str:
+        return self._ordered_dict['Fecha de Pago']
+
+    def status(self) -> str:
+        return self._ordered_dict['Estado']
+
+    def __str__(self):
+        return self.string_representation()
 
 
 class TypeOfWebResult(Enum):
@@ -46,11 +65,6 @@ class TypeOfWebResult(Enum):
 
 
 class WebResult(object):
-    _CLIENTE_ERROR = ("Eres cliente del banco?, no es posible consultar tu "
-                      "informacion por la interfaz publica.")
-    _INTENTE_NUEVAMENTE_ERROR = (
-            "La pagina del banco tiene un error y dice que intentes "
-            "nuevamente. Intenta nuevamente en unas horas")
 
     def __init__(
             self, type_result: TypeOfWebResult, events: List[Event]) -> None:
@@ -66,9 +80,9 @@ class WebResult(object):
     def get_error(self):
         type_result = self._type_result
         if type_result == TypeOfWebResult.CLIENTE:
-            return self._CLIENTE_ERROR
+            return Messages.CLIENTE_ERROR
         elif type_result == TypeOfWebResult.INTENTE_NUEVAMENTE:
-            return self._INTENTE_NUEVAMENTE_ERROR
+            return Messages.INTENTE_NUEVAMENTE_ERROR
         elif type_result == TypeOfWebResult.NO_ERROR:
             return ''
         raise ValueError('Unknown type of result')
@@ -128,17 +142,16 @@ class Parser(object):
         raise ParsingException('No pude parsear la respuesta del banco :(')
 
     @classmethod
-    def _raw_events_to_new_events(cls,
-                                  raw_events: List[Dict[str, str]]):
+    def _raw_events_to_new_events(cls, raw_events: List[RawEvent]):
         ret = []
         for event in raw_events:
-            date = cls._parse_date(event['Fecha de Pago'])
-            event_type = cls._parse_event_type(event['Estado'])
+            date = cls._parse_date(event.date())
+            event_type = cls._parse_event_type(event.status())
             ret.append(Event(event_type, date))
         return ret
 
     @classmethod
-    def raw_events_to_new_events(cls, events: List[Dict[str, str]]):
+    def raw_events_to_new_events(cls, events: List[RawEvent]) -> List[Event]:
         # Experimental, errors here are not fatal.
         try:
             return cls._raw_events_to_new_events(events)
@@ -162,28 +175,15 @@ class Parser(object):
                                  ('Medio de Pago', data[1].text.strip('\n')),
                                  ('Oficina/Banco', data[2].text.strip('\n')),
                                  ('Estado', data[3].text.strip('\n'))]))
-        return events
+        return [RawEvent(d) for d in events]
 
     @classmethod
-    def _raw_event_to_single_cache_string(cls,
-                                          raw_event: Dict[str, str]) -> str:
-        ret = []
-        for k, v in raw_event.items():
-            ret.append("%s: %s\n" % (k.strip(), v.strip()))
-        return "".join(ret).rstrip("\n")
+    def _raw_events_to_cache_string(cls, raw_events: List[RawEvent]):
+        raw_events_as_str = [str(x) for x in raw_events]
+        return "\n\n".join(raw_events_as_str)
 
     @classmethod
-    def _raw_events_to_cache_string(cls, raw_events: List[Dict[str, str]]):
-        parsed_result = []
-        for e in raw_events:
-            this_result = []
-            for k, v in e.items():
-                this_result.append("%s: %s\n" % (k.strip(), v.strip()))
-            parsed_result.append("".join(this_result).rstrip("\n"))
-        return "\n\n".join(parsed_result)
-
-    @classmethod
-    def _single_cache_string_to_raw_event(cls, string):
+    def _single_cache_string_to_raw_event(cls, string: str) -> RawEvent:
         d = OrderedDict()
         lines = string.split("\n")
         if len(lines) != 4:
@@ -192,21 +192,24 @@ class Parser(object):
         d['Medio de Pago'] = lines[1].lstrip('Medio de Pago ')
         d['Oficina/Banco'] = lines[2].lstrip('Oficina/Banco ')
         d['Estado'] = lines[3].lstrip('Estado ')
-        return d
+        return RawEvent(d)
 
     @classmethod
-    def cache_string_to_raw_events(cls, cache_string: str):
+    def cache_string_to_web_result(cls, cache_string: str) -> WebResult:
+        if Messages.CLIENTE_ERROR in cache_string:
+            return WebResult(TypeOfWebResult.CLIENTE, [])
+        if Messages.INTENTE_NUEVAMENTE_ERROR in cache_string:
+            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE)
+
         single_cache_strings = cache_string.split("\n\n")
         raw_events = []
         for s in single_cache_strings:
             raw_events.append(cls._single_cache_string_to_raw_event(s))
-        return raw_events
+        return WebResult(TypeOfWebResult.NO_ERROR, raw_events)
 
     @classmethod
-    def deprecated_events_list_to_cache_string(cls, deprecated_events):
-        strings = []
-        for e in deprecated_events:
-            strings.append(e.string_representation)
+    def raw_events_to_cache_string(cls, raw_events: List[RawEvent]):
+        strings = [str(e) for e in raw_events]
         return "\n\n".join(strings)
 
     @classmethod
@@ -227,53 +230,73 @@ class Parser(object):
             logger.exception('While trying to parse \n%s\n', raw_page)
             raise e
 
-        ret: List[Event] = []
-        for r in raw_events:
-            ret.append(
-                    DeprecatedEvent(cls._raw_event_to_single_cache_string(r)))
-        return WebResult(TypeOfWebResult.NO_ERROR, ret)
+        return WebResult(TypeOfWebResult.NO_ERROR, raw_events)
 
 
 class Web(object):
 
     def __init__(self, rut: Rut, telegram_user_id: int,
-                 web_retriever: WebRetriever=WebPageDownloader()) -> None:
+                 web_retriever: WebRetriever=WebPageDownloader(),
+                 cache: Cache=Cache()) -> None:
         self.rut = rut
-        self._retrieve(telegram_user_id, web_retriever)
+        self._retrieve(telegram_user_id, web_retriever, cache)
         try:
             self._parse_new_results()
-        except Exception:
+        except Exception as e:
             self._events = None
-            pass
+            logger.exception('New results parsing failed.')
 
-    def _retrieve(self, telegram_user_id: int, web_retriever: WebRetriever):
+    def _retrieve(self, telegram_user_id: int, web_retriever: WebRetriever,
+                  cache: Cache):
         user_id = User.get_id(telegram_user_id)
-        cached_results = CachedResult.get(user_id, self.rut)
-        self._loaded_from_cache = cached_results is not None
+        cached_results = cache.get(user_id, self.rut)
+        self._retrieved_from_cache = cached_results is not None
+        self._cache_changed = False
         if cached_results:
-            self._old_parsed_results = cached_results
+            self._old_cache_and_user_str = cached_results
+            self.raw_events_web_result = Parser.cache_string_to_web_result(
+                    cached_results)
             return
+
         raw_page = web_retriever.retrieve(self.rut)
-        deprecated_web_result = Parser.parse(raw_page)
-        self._old_parsed_results = (
-                Parser.deprecated_events_list_to_cache_string(
-                        deprecated_web_result.get_events()))
-        self._cache_changed = True
+        raw_events_web_result = Parser.parse(raw_page)
+
+        # Cache even error results to prevent users to trigger
+        # too many requests to the bank.
+        if raw_events_web_result.get_type() != TypeOfWebResult.NO_ERROR:
+            self._old_cache_and_user_str = raw_events_web_result.get_error()
+        else:
+            self._old_cache_and_user_str = Parser.raw_events_to_cache_string(
+                    raw_events_web_result.get_events())
         try:
-            self._cache_changed = CachedResult.update(
-                    user_id, self.rut, self._old_parsed_results)
+            self._cache_changed = cache.update(user_id, self.rut,
+                                                 self._old_cache_and_user_str)
         # Non fatal error.
         except Exception as e:
-            logging.exception("Unable to update the cache")
+            logger.exception("Unable to update the cache")
+        self.raw_events_web_result = raw_events_web_result
 
     # Must be called after retrieve returns.
     def _parse_new_results(self):
-        raw_events = Parser.cache_string_to_raw_events(
-                self._old_parsed_results)
+        raw_events = self.raw_events_web_result.get_events()
         self._events = raw_events_to_new_events(raw_events)
 
     def get_results(self):
-        return self._old_parsed_results
+        return self._old_cache_and_user_str
 
     def did_cache_change(self):
         return self._cache_changed
+
+    def is_useful_info_for_user(self) -> bool:
+        web_result_type = self.raw_events_web_result.get_type()
+        # If error, not useful.
+        if web_result_type != TypeOfWebResult.NO_ERROR:
+            return False
+        # If empty, not useful.
+        if not self._old_cache_and_user_str:
+            return False
+        # If the info was already in the cache, not useful.
+        if not self.did_cache_change():
+            return False
+        #TODO(fmontoto): Check if there is new data by checking old cache data.
+        return True

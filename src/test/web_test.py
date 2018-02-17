@@ -6,6 +6,7 @@ from unittest import TestCase
 import inspect
 
 from src.utils import Rut
+from src.messages import Messages
 from src import web
 
 
@@ -38,7 +39,7 @@ class TestPublicParser(TestCase):
         web_result = web.Parser.parse(raw_page)
         self.assertEqual(web.TypeOfWebResult.CLIENTE, web_result.get_type())
         self.assertEqual(0, len(web_result.get_events()))
-        self.assertEqual(web.WebResult._CLIENTE_ERROR, web_result.get_error())
+        self.assertEqual(Messages.CLIENTE_ERROR, web_result.get_error())
 
     def testErrorPage(self):
         path = self.base_path.joinpath('Error.htm')
@@ -48,7 +49,7 @@ class TestPublicParser(TestCase):
         self.assertEqual(web.TypeOfWebResult.INTENTE_NUEVAMENTE,
                          web_result.get_type())
         self.assertEqual(0, len(web_result.get_events()))
-        self.assertEqual(web.WebResult._INTENTE_NUEVAMENTE_ERROR,
+        self.assertEqual(Messages.INTENTE_NUEVAMENTE_ERROR,
                          web_result.get_error())
 
     def testNadaPage(self):
@@ -74,7 +75,7 @@ class TestPublicParser(TestCase):
                 'Oficina/Banco: BCO. CRED. E INVERSIONES\n'
                 'Estado: Pagado / Rendido')
         self.assertEqual(first_expected_str,
-                         web_result.get_events()[0].string_representation)
+                         web_result.get_events()[0].string_representation())
 
 
 if __name__ == '__main__':

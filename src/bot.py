@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import enum
 import datetime
 from functools import partial
 import logging
+import logging.handlers
 from queue import Queue
 import random
 import os
@@ -19,23 +21,31 @@ import telegram
 from src.messages import Messages
 from src.model_interface import User, _start
 from src.model_interface import UserBadUseError, UserDoesNotExistError
+from src import model_interface
 from src.utils import Rut
 import src.utils
 from src import web
 from src.web import ParsingException, Web, WebRetriever
 
-# Enable logging
-try:
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(format=log_format,
-                        level=logging.DEBUG,
-                        filename="log/bot.log",
-                        filemode="a+")
-except FileNotFoundError:
-    print("log file not found")
-    pass
-
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Rotating file handler, rotates every 4 mondays.
+try:
+    _log_handler = logging.handlers.TimedRotatingFileHandler(
+            'log/bot.log', when='W0', interval = 4, utc=True)
+    _log_handler.setLevel(logging.DEBUG)
+except FileNotFoundError:
+    print('log dir not found for file logging')
+    _log_handler = logging.StreamHandler()
+    _log_handler.setLevel(logging.DEBUG)
+
+_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+_log_handler.setFormatter(logging.Formatter(_log_format))
+logger.addHandler(_log_handler)
+
+logger.info('Logging started')
+
 
 TOKEN = os.getenv("BOT_TOKEN", None)
 
@@ -47,11 +57,14 @@ SUBSCRIBED: Queue = Queue()
 
 
 class ValeVistaBot(object):
-    def __init__(self, web_retriever: WebRetriever=None) -> None:
+    # Arguments are dependency injection for test purposes.
+    def __init__(self, web_retriever: WebRetriever=None,
+                 cache: model_interface.Cache=None) -> None:
         if web_retriever is None:
             self._web_retriever = web.WebPageDownloader()  # type: WebRetriever
         else:
             self._web_retriever = web_retriever
+        self._cache = cache or model_interface.Cache()
 
     # Command handlers.
     def start(self, bot, update: telegram.Update):
@@ -71,7 +84,7 @@ class ValeVistaBot(object):
         if rut_:
             return self.query_the_bank_and_reply(telegram_id, rut_,
                                                  update.message.reply_text,
-                                                 False)
+                                                 self.ReplyWhen.ALWAYS)
         update.message.reply_text(Messages.NO_RUT_MSG)
 
     def set_rut(self, bot, update: telegram.Update):
@@ -130,30 +143,41 @@ class ValeVistaBot(object):
             self.echo(bot, update)
         else:
             self.query_the_bank_and_reply(update.message.from_user.id, rut,
-                                          update.message.reply_text, False)
+                                          update.message.reply_text,
+                                          self.ReplyWhen.ALWAYS)
 
     # Non telegram handlers.
     def echo(self, bot, update):
         update.message.reply_text(update.message.text)
 
+    class ReplyWhen(enum.Enum):
+        ALWAYS = 1
+        IS_USEFUL_FOR_USER = 2
+
     def query_the_bank_and_reply(self, telegram_id: int, rut: Rut, reply_fn,
-                                 reply_only_on_change_and_expected: bool):
+                                 reply_when: ReplyWhen):
         try:
-            web_result = Web(rut, telegram_id, self._web_retriever)
+            web_result = Web(rut, telegram_id, self._web_retriever,
+                             self._cache)
             response = web_result.get_results()
-            changed = web_result.did_cache_change()
+        # Expected exception.
         except ParsingException as e:
-            reply_fn(e.public_message)
+            if reply_when == self.ReplyWhen.ALWAYS:
+                reply_fn(e.public_message)
+            return
         except Exception as e:
             logger.exception("Error:")
-            reply_fn(("Ups!, un error inesperado ha ocurrido, "
-                      "lo solucionaremos a la brevedad (?)"))
+            if reply_when == self.ReplyWhen.ALWAYS:
+               reply_fn(Messages.INTERNAL_ERROR)
+            return
+
+        if reply_when == self.ReplyWhen.ALWAYS:
+            reply_fn(response)
+        elif reply_when == self.ReplyWhen.IS_USEFUL_FOR_USER:
+            if web_result.is_useful_info_for_user():
+                reply_fn(response)
         else:
-            if not reply_only_on_change_and_expected:
-                reply_fn(response)
-                return
-            if response and changed:
-                reply_fn(response)
+            logger.error('Not handled enum: %s', reply_when)
 
 
 def signal_handler(signum, frame):
@@ -161,20 +185,21 @@ def signal_handler(signum, frame):
     if RUNNING:
         RUNNING = False
     else:
-        logger.warn("Exiting now!")
+        logger.error("Exiting now!")
         os.exit(1)
 
 
 def step(updater, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
-    logger.info("To update queue length: %s", len(users_to_update))
+    logger.debug("To update queue length: %s", len(users_to_update))
     if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(
                 0, len(users_to_update) - 1)]
         self.query_the_bank_and_reply(
                 user_to_update.telegram_id, user_to_update.rut,
                 partial(updater.bot.sendMessage,
-                        User.get_chat_id(user_to_update.id)), True)
+                        User.get_chat_id(user_to_update.id)),
+                self.ReplyWhen.IS_USEFUL_FOR_USER)
 
 
 def loop(updater):

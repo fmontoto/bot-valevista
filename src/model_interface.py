@@ -157,19 +157,29 @@ class User(object):
         return subscribed_user.chat_id
 
 
-class CachedResult(object):
-    @classmethod
-    def get(cls, user_id, rut):
+class Cache(object):
+    def __init__(self,
+            exp_time: datetime.timedelta=datetime.timedelta(hours=2)
+            ) -> None:
+        self._exp_time = exp_time
+
+    def get(self, user_id, rut):
+        """If there are non expired results, return them."""
         session = _session()
         result = session.query(models.CachedResult).filter_by(
                 user_id=user_id, rut=rut.rut_sin_digito).all()
         if not result or result[0].retrieved < (
-                datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
+                datetime.datetime.utcnow() - self._exp_time):
             return None
         return result[0].result
 
-    @classmethod
-    def update(cls, user_id, rut: Rut, result):
+    def update(self, user_id, rut: Rut, result):
+        """Updates the cache with 'result'.
+
+        Returns:
+            bool: Whether the cache changes or not (ie result was already
+                stored).
+        """
         session = _session()
         c_result = session.query(models.CachedResult).filter_by(
                 user_id=user_id, rut=rut.rut_sin_digito).all()
