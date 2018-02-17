@@ -7,10 +7,10 @@ from src.utils import Rut
 class TestRutClassMethods(TestCase):
 
     def test_digito_verificador(self):
-        self.assertEqual(2, Rut._digito_verificador("12456371"))
-        self.assertEqual(4, Rut._digito_verificador("6786532"))
-        self.assertEqual(8, Rut._digito_verificador("6786530"))
-        self.assertEqual(1, Rut._digito_verificador("6786539"))
+        self.assertEqual('2', Rut._digito_verificador("12456371"))
+        self.assertEqual('4', Rut._digito_verificador("6786532"))
+        self.assertEqual('8', Rut._digito_verificador("6786530"))
+        self.assertEqual('1', Rut._digito_verificador("6786539"))
         self.assertEqual('k', Rut._digito_verificador("14123742"))
 
     def test_normalize_rut(self):

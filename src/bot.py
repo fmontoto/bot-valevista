@@ -16,11 +16,13 @@ from telegram.ext import Updater
 import telegram
 
 
-from src.model_interface import User, _start, UserBadUseError
+from src.messages import Messages
+from src.model_interface import User, _start
+from src.model_interface import UserBadUseError, UserDoesNotExistError
 from src.utils import Rut
 import src.utils
 from src import web
-from src.web import ParsingException, Web
+from src.web import ParsingException, Web, WebRetriever
 
 # Enable logging
 try:
@@ -45,53 +47,9 @@ SUBSCRIBED: Queue = Queue()
 
 
 class ValeVistaBot(object):
-    _START_MSG = (
-            "Hola %s, soy el bot de los vale vista pagados por la UChile. "
-            "Actualmente estoy en construcción.\n"
-            "Para consultar si tienes vales vista pendientes en el banco, "
-            "enviame el rut a consultar en un mensaje, por ejemplo: "
-            "12.345.678-9 o 12.345.678 o 12345678.\n"
-            "Si quieres que recuerde tu rut para consultarlo recurrentemente, "
-            "envia: /set TU_RUT. Luego consúltalo enviando /get. \n"
-            "Una vez que guardes tu rut envía /subscribe y revisaré "
-            "periódicamente la página del banco para notificarte si hay "
-            "nuevos vale vista."
-    )
-    _HELP_MSG = (
-            "Estoy para ayudarte, si no sabes como utilizar o para que sirve "
-            "este bot, envia /start.\n"
-            "Si tienes comentarios/sugerencias/quejas abre un issue en la "
-            "página de  github del proyecto: "
-            "https://https://github.com/fmontoto/bot-valevista, si estas de "
-            "suerte alguien se puede apiadar y ayudarte. También feliz "
-            "aceptaré Pull Requests con la solución a tu problema o con una "
-            "nueva funcionalidad."
-    )
-
-    _NO_RUT_MSG = (
-            "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
-
-    _SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
-                "directamente.")
-
-    _SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
-
-    _SET_INVALID_RUT = ("Rut no válido, recuerda agregar el dígito verificador "
-                        "separado por un guión.")
-
-    _SUBSCRIBED = (
-            "Estas subscrito, si hay cambios con respecto al último resultado "
-            "que miraste aquí, te enviaré un mensaje. Estaré revisando la "
-            "página del banco cada uno o dos días. Si la desesperación es "
-            "mucha, recuerda que puedes preguntarme con /get \n Para eliminar "
-            "tu subscripción, envía el comando /unsubscribe.")
-
-    _UNSUBSCRIBED = (
-            "Ya no estás subscrito, para volver a estarlo, envía /subscribe.")
-
-    def __init__(self, web_retriever: web.WebRetriever=None) -> None:
-        if web_retriever:
-            self._web_retriever = web.WebPageDownloader()
+    def __init__(self, web_retriever: WebRetriever=None) -> None:
+        if web_retriever is None:
+            self._web_retriever = web.WebPageDownloader()  # type: WebRetriever
         else:
             self._web_retriever = web_retriever
 
@@ -99,11 +57,11 @@ class ValeVistaBot(object):
     def start(self, bot, update: telegram.Update):
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
-        update.message.reply_text(self._START_MSG % name)
+        update.message.reply_text(Messages.START_MSG % name)
 
     # Sends a help message to the user.
     def help(self, bot, update: telegram.Update):
-        update.message.reply_text(self._HELP_MSG)
+        update.message.reply_text(Messages.HELP_MSG)
 
     # Query the service using the stored rut.
     def get_rut(self, bot, update: telegram.Update):
@@ -114,24 +72,24 @@ class ValeVistaBot(object):
             return self.query_the_bank_and_reply(telegram_id, rut_,
                                                  update.message.reply_text,
                                                  False)
-        update.message.reply_text(self._NO_RUT_MSG)
+        update.message.reply_text(Messages.NO_RUT_MSG)
 
     def set_rut(self, bot, update: telegram.Update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
-            update.message.reply_text(self._SET_EMPTY_RUT)
+            update.message.reply_text(Messages.SET_EMPTY_RUT)
 
         rut = Rut.build_rut(spl[1])
 
         if rut is None:
-            update.message.reply_text(self._SET_INVALID_RUT)
+            update.message.reply_text(Messages.SET_INVALID_RUT)
             return
 
         User.set_rut(update.message.from_user.id, rut)
 
         logger.info("User %s set rut %s", update.message.from_user.id,
                     Rut._normalize_rut(spl[1]))
-        update.message.reply_text(self._SET_RUT % rut)
+        update.message.reply_text(Messages.SET_RUT % rut)
 
     def subscribe(self, bot, update: telegram.Update):
         try:
@@ -141,7 +99,7 @@ class ValeVistaBot(object):
             update.message.reply_text(e.public_message)
         else:
             logger.info("User %s subscribed", update.message.from_user.id)
-            update.message.reply_text(self._SUBSCRIBED)
+            update.message.reply_text(Messages.SUBSCRIBED)
 
     def unsubscribe(self, bot, update: telegram.Update):
         try:
@@ -150,9 +108,12 @@ class ValeVistaBot(object):
         except UserBadUseError as e:
             logger.warning(e.public_message)
             update.message.reply_text(e.public_message)
+        except UserDoesNotExistError as e:
+            logger.warning(e.public_message)
+            update.message.reply_text(Messages.UNSUBSCRIBE_NON_SUBSCRIBED)
         else:
             logger.info("User %s unsubscribed", update.message.from_user.id)
-            update.message.reply_text(self._UNSUBSCRIBED)
+            update.message.reply_text(Messages.UNSUBSCRIBED)
 
     def debug(self, bot, update: telegram.Update):
         logger.info("Debug: %s, %s" % (bot, update))
@@ -175,23 +136,23 @@ class ValeVistaBot(object):
     def echo(self, bot, update):
         update.message.reply_text(update.message.text)
 
-
     def query_the_bank_and_reply(self, telegram_id: int, rut: Rut, reply_fn,
                                  reply_only_on_change_and_expected: bool):
         try:
-            web_parser = Web(rut, self._web_retriever)
-            response, changed = web_parser.get_parsed_results(telegram_id)
+            web_result = Web(rut, telegram_id, self._web_retriever)
+            response = web_result.get_results()
+            changed = web_result.did_cache_change()
         except ParsingException as e:
             reply_fn(e.public_message)
         except Exception as e:
             logger.exception("Error:")
             reply_fn(("Ups!, un error inesperado ha ocurrido, "
-                    "lo solucionaremos a la brevedad (?)"))
+                      "lo solucionaremos a la brevedad (?)"))
         else:
             if not reply_only_on_change_and_expected:
                 reply_fn(response)
                 return
-            if web_parser.page_type == web_parser.EXPECTED and changed:
+            if response and changed:
                 reply_fn(response)
 
 

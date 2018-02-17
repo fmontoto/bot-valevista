@@ -12,6 +12,7 @@ from src.bot import ValeVistaBot
 from src.bot import add_handlers
 from src.utils import is_a_proper_time, Rut
 from src import model_interface
+from src.messages import Messages
 from src.test import web_test
 import pytz
 
@@ -30,8 +31,10 @@ def get_id():
     id += 1
     return id
 
+
 def dummyCb(*args, **kwargs):
     pass
+
 
 def simpleCommand(bot, name: str, user: telegram.User, chat: telegram.Chat,
                   cb_reply=None,
@@ -95,37 +98,38 @@ class TestBot(TestCase):
         self.assertContains(self.stored, expected)
 
     def testHelp(self):
-        expected = ValeVistaBot._HELP_MSG
+        expected = Messages.HELP_MSG
         update = self.simpleCommand('help',
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
 
     def testGetNoRutSet(self):
-        expected = ValeVistaBot._NO_RUT_MSG
+        expected = Messages.NO_RUT_MSG
         update = self.simpleCommand('get', cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
 
     def testSetEmptyRut(self):
-        expected = ValeVistaBot._SET_EMPTY_RUT
+        expected = Messages.SET_EMPTY_RUT
         update = self.simpleCommand('set', cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
 
     def testSetInvalidRut(self):
-        expected = ValeVistaBot._SET_INVALID_RUT
+        expected = Messages.SET_INVALID_RUT
         update = self.simpleCommand('set NO_VALID_RUT',
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
 
     def testSetRut(self):
-        expected = ValeVistaBot._SET_RUT % str(self.rut)
+        expected = Messages.SET_RUT % str(self.rut)
         update = self.simpleCommand('set %s' % self.rut_non_std_str,
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
         self.assertEqual(self.stored, expected)
+
 
 class TestFunctionalBot(TestCase):
     def setUp(self):
@@ -155,31 +159,73 @@ class TestFunctionalBot(TestCase):
     def store_received_string(self, recv_str: str):
         self.stored = recv_str
 
+    def testGetRut(self):
+        expected = Messages.NO_RUT_MSG
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribeNoRut(self):
+        expected = Messages.SUBSCRIBE_NO_RUT
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribe(self):
+        self.setRut()
+        expected = Messages.SUBSCRIBED
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribeTwice(self):
+        self.setRut()
+        expected = Messages.ALREADY_SUBSCRIBED
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testUnsubscribe(self):
+        expected = Messages.UNSUBSCRIBE_NON_SUBSCRIBED
+        update = self.simpleCommand('unsubscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSetRutUnsubscribe(self):
+        self.setRut()
+        expected = Messages.UNSUBSCRIBE_NON_SUBSCRIBED
+        update = self.simpleCommand('unsubscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribeUnsubscribe(self):
+        self.setRut()
+        expected = Messages.UNSUBSCRIBED
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+
+        update = self.simpleCommand('unsubscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    # Test getting results.
     def testGetStoredRut(self):
         self.setRut()
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
         update = self.simpleCommand('get', cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
-        print(self.stored)
-        self.assertFalse(True)
-
-    def testGetRut(self):
-        expected = ValeVistaBot._NO_RUT_MSG
-        update = self.simpleCommand('get', cb_reply=self.store_received_string)
-        self.dispatcher.process_update(update)
-        self.assertEqual(expected, self.stored)
-
-    def testSubscribe(self):
-        self.assertFalse(True)
-
-    def testSubscribeTwice(self):
-        self.assertFalse(True)
-
-    def testUnsubscribe(self):
-        self.assertFalse(True)
-
-    def testSubscribeUnsubscribe(self):
+        # print(self.stored)
         self.assertFalse(True)
 
 

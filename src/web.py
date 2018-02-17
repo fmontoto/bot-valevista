@@ -52,7 +52,8 @@ class WebResult(object):
             "La pagina del banco tiene un error y dice que intentes "
             "nuevamente. Intenta nuevamente en unas horas")
 
-    def __init__(self, type_result: TypeOfWebResult, events: List[Event]):
+    def __init__(
+            self, type_result: TypeOfWebResult, events: List[Event]) -> None:
         self._type_result = type_result
         self._events = events
 
@@ -137,16 +138,13 @@ class Parser(object):
         return ret
 
     @classmethod
-    def raw_events_to_new_events(cls, events):
+    def raw_events_to_new_events(cls, events: List[Dict[str, str]]):
         # Experimental, errors here are not fatal.
         try:
-            parsed_events = cls._parse_events(events)
+            return cls._raw_events_to_new_events(events)
         except Exception as e:
-            logger.exception(e)
-            loggin.error('While trying to parse:\n%s\n', raw_page)
-        else:
-            logger.info(parsed_events)
-
+            logger.exception('While trying to parse:\n%s\n', events)
+            return []
 
     @classmethod
     def _raw_page_to_raw_events(cls, raw_page):
@@ -186,12 +184,23 @@ class Parser(object):
 
     @classmethod
     def _single_cache_string_to_raw_event(cls, string):
-        raise NotImplementedError()
+        d = OrderedDict()
+        lines = string.split("\n")
+        if len(lines) != 4:
+            raise ParsingException('4 lines expected, got %d.', len(lines))
+        d['Fecha de Pago'] = lines[0].lstrip('Fecha de Pago ')
+        d['Medio de Pago'] = lines[1].lstrip('Medio de Pago ')
+        d['Oficina/Banco'] = lines[2].lstrip('Oficina/Banco ')
+        d['Estado'] = lines[3].lstrip('Estado ')
+        return d
 
     @classmethod
-    def _cache_string_to_raw_events(cls, cache_string: str):
+    def cache_string_to_raw_events(cls, cache_string: str):
         single_cache_strings = cache_string.split("\n\n")
-        raise NotImplementedError()
+        raw_events = []
+        for s in single_cache_strings:
+            raw_events.append(cls._single_cache_string_to_raw_event(s))
+        return raw_events
 
     @classmethod
     def deprecated_events_list_to_cache_string(cls, deprecated_events):
@@ -215,80 +224,56 @@ class Parser(object):
         try:
             raw_events = cls._raw_page_to_raw_events(raw_page)
         except Exception as e:
-            logger.exception(e)
-            logger.error('While trying to parse \n%s\n', raw_page)
+            logger.exception('While trying to parse \n%s\n', raw_page)
             raise e
 
-        ret = []
-        for e in raw_events:
-            ret.append(DeprecatedEvent(cls._raw_event_to_single_cache_string(e)))
+        ret: List[Event] = []
+        for r in raw_events:
+            ret.append(
+                    DeprecatedEvent(cls._raw_event_to_single_cache_string(r)))
         return WebResult(TypeOfWebResult.NO_ERROR, ret)
 
 
 class Web(object):
-    # Tipos de pagina
-    EXPECTED = 1
-    CLIENTE = 2
-    NO_PAGOS = 3
-    INTENTE_NUEVAMENTE = 4
 
-    def __init__(self, rut: Rut,
+    def __init__(self, rut: Rut, telegram_user_id: int,
                  web_retriever: WebRetriever=WebPageDownloader()) -> None:
         self.rut = rut
-        self._retrieve(web_retriever)
+        self._retrieve(telegram_user_id, web_retriever)
         try:
             self._parse_new_results()
         except Exception:
+            self._events = None
             pass
 
-    def _retrieve(self, web_retriever: WebRetriever):
+    def _retrieve(self, telegram_user_id: int, web_retriever: WebRetriever):
         user_id = User.get_id(telegram_user_id)
         cached_results = CachedResult.get(user_id, self.rut)
-        self.loaded_from_cache = cached_results is not None
+        self._loaded_from_cache = cached_results is not None
         if cached_results:
-            self.old_parsed_results = cached_results
+            self._old_parsed_results = cached_results
             return
-
-
+        raw_page = web_retriever.retrieve(self.rut)
+        deprecated_web_result = Parser.parse(raw_page)
+        self._old_parsed_results = (
+                Parser.deprecated_events_list_to_cache_string(
+                        deprecated_web_result.get_events()))
+        self._cache_changed = True
+        try:
+            self._cache_changed = CachedResult.update(
+                    user_id, self.rut, self._old_parsed_results)
+        # Non fatal error.
+        except Exception as e:
+            logging.exception("Unable to update the cache")
 
     # Must be called after retrieve returns.
     def _parse_new_results(self):
-        raise NotImplementedError()
-
-        self.raw_page = web_retriever.retrieve()
-        self.loaded_from_cache = False
+        raw_events = Parser.cache_string_to_raw_events(
+                self._old_parsed_results)
+        self._events = raw_events_to_new_events(raw_events)
 
     def get_results(self):
-        if not self.web_results:
-            self.web_results = Parser.parse(self.raw_page)
-        return self.web_results
+        return self._old_parsed_results
 
-    def get_parsed_results(self, telegram_user_id):
-        """
-
-        :param telegram_user_id:
-        :return: (str, boolean) - (result, changed_from_cached)
-        """
-        user_id = User.get_id(telegram_user_id)
-        result = CachedResult.get(user_id, self.rut)
-        if result:
-            logger.info("Using cache results.")
-            return result, False
-        logger.info("Querying the bank page")
-        results = self.get_results()
-        if self.page_type != self.EXPECTED:
-            result = "".join(results)
-        else:
-            parsed_result = []
-            for r in results:
-                this_result = []
-                for k, v in r.items():
-                    this_result.append("%s: %s\n" % (k.strip(), v.strip()))
-                parsed_result.append("".join(this_result).rstrip("\n"))
-            result = "\n\n".join(parsed_result)
-
-        try:
-            return result, CachedResult.update(user_id, self.rut, result)
-        except Exception as e:
-            logging.exception("parsed_results")
-            return result, True
+    def did_cache_change(self):
+        return self._cache_changed

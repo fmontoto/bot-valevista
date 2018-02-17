@@ -8,7 +8,7 @@ import pytz
 
 
 class Rut(object):
-    def __init__(self, rut: int, digito_verificador: str):
+    def __init__(self, rut: int, digito_verificador: str) -> None:
         self.rut_sin_digito = rut
         self.digito_verificador = digito_verificador
 
@@ -50,7 +50,7 @@ class Rut(object):
         reversed_digits = map(int, reversed(rut))
         factors = itertools.cycle(range(2, 8))
         s = sum(d * f for d, f in zip(reversed_digits, factors))
-        return 'k' if (-s) % 11 == 10 else (-s) % 11
+        return 'k' if (-s) % 11 == 10 else str((-s) % 11)
 
     @classmethod
     def _normalize_rut(cls, rut_input: str) -> Optional[str]:

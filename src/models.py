@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 Base = declarative_base()
 
 
-class User(Base):
+class User(Base):  # type: ignore
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer, unique=True)
@@ -18,7 +18,7 @@ class User(Base):
                 self.id, self.telegram_id)
 
 
-class CachedResult(Base):
+class CachedResult(Base):  # type: ignore
     __tablename__ = 'cached_results'
 
     id = Column(Integer, primary_key=True)
@@ -35,7 +35,7 @@ class CachedResult(Base):
                                                     self.result)
 
 
-class SubscribedUsers(Base):
+class SubscribedUsers(Base):  # type: ignore
     __tablename__ = 'subscribed_users'
 
     id = Column(Integer, primary_key=True)

@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
+from src.messages import Messages
 from src.utils import Rut
 from . import models
 
@@ -37,6 +38,10 @@ class UserBadUseError(ValeVistaBotException):
     pass
 
 
+class UserDoesNotExistError(ValeVistaBotException):
+    pass
+
+
 def commit_rollback(session_):
     try:
         session_.commit()
@@ -54,7 +59,7 @@ class User(object):
                 models.User).filter_by(telegram_id=telegram_id).first()
         if not user:
             if not create:
-                raise ValueError("User does not exists")
+                raise UserDoesNotExistError('User not found.')
             user = models.User(telegram_id=telegram_id)
             session.add(user)
             session.commit()
@@ -75,7 +80,7 @@ class User(object):
         session = _session()
         user = session.query(models.User).filter_by(id=user_id).first()
         if not user:
-            raise ValueError("User does not exists")
+            raise UserDoesNotExistError('User not found.')
         return user.telegram_id
 
     @classmethod
@@ -105,9 +110,9 @@ class User(object):
     @classmethod
     def subscribe(cls, telegram_id, chat_id):
         if not User.get_rut(telegram_id):
-            raise UserBadUseError("Tienes que tener un rut registrado.")
+            raise UserBadUseError(Messages.SUBSCRIBE_NO_RUT)
         if User.is_subscribed(telegram_id, chat_id):
-            raise UserBadUseError("Ya esta registrado")
+            raise UserBadUseError(Messages.ALREADY_SUBSCRIBED)
 
         user_id = User.get_id(telegram_id, False)
         subscription = models.SubscribedUsers(user_id=user_id, chat_id=chat_id)
@@ -122,7 +127,7 @@ class User(object):
         result = session.query(models.SubscribedUsers).filter_by(
                 user_id=user_id, chat_id=chat_id).all()
         if not len(result):
-            raise UserBadUseError("No estas suscrito")
+            raise UserBadUseError(Messages.UNSUBSCRIBE_NON_SUBSCRIBED)
 
         session.delete(result[0])
         session.commit()
@@ -156,8 +161,8 @@ class CachedResult(object):
     @classmethod
     def get(cls, user_id, rut):
         session = _session()
-        result = session.query(
-                models.CachedResult).filter_by(user_id=user_id, rut=rut.rut_sin_digito).all()
+        result = session.query(models.CachedResult).filter_by(
+                user_id=user_id, rut=rut.rut_sin_digito).all()
         if not result or result[0].retrieved < (
                 datetime.datetime.utcnow() - datetime.timedelta(hours=2)):
             return None
@@ -166,11 +171,11 @@ class CachedResult(object):
     @classmethod
     def update(cls, user_id, rut: Rut, result):
         session = _session()
-        c_result = session.query(
-                models.CachedResult).filter_by(user_id=user_id, rut=rut.rut_sin_digito).all()
+        c_result = session.query(models.CachedResult).filter_by(
+                user_id=user_id, rut=rut.rut_sin_digito).all()
         if not c_result:
-            c_result = models.CachedResult(rut=rut.rut_sin_digito, user_id=user_id,
-                                           result=result)
+            c_result = models.CachedResult(
+                    rut=rut.rut_sin_digito, user_id=user_id, result=result)
             session.add(c_result)
             session.commit()
             return True
