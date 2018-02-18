@@ -10,6 +10,7 @@ from queue import Queue
 import random
 import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
+import sys
 import time
 from typing import Text
 
@@ -190,7 +191,7 @@ def signal_handler(signum, frame):
         RUNNING = False
     else:
         logger.error("Exiting now!")
-        os.exit(1)
+        sys.exit(1)
 
 
 def step(updater, hours=HOURS_TO_UPDATE):
@@ -212,8 +213,11 @@ def loop(updater):
         signal(sig, signal_handler)
 
     while RUNNING:
-        if utils.is_a_proper_time(datetime.datetime.utcnow()):
-            step(updater)
+        try:
+            if utils.is_a_proper_time(datetime.datetime.utcnow()):
+                step(updater)
+        except Exception as e:
+            logger.exception("step failed")
         time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
     updater.stop()
 
