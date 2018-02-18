@@ -145,11 +145,11 @@ class ValeVistaBot(object):
         logger.info("MSG:[%s]", update.message.text)
         rut = Rut.build_rut(update.message.text)
         if rut:
-            self.echo(bot, update)
-        else:
             self.query_the_bank_and_reply(update.message.from_user.id, rut,
                                           update.message.reply_text,
                                           self.ReplyWhen.ALWAYS)
+        else:
+            self.echo(bot, update)
 
     # Non telegram handlers.
     def echo(self, bot, update):

@@ -37,12 +37,12 @@ def dummyCb(*args, **kwargs):
     pass
 
 
-def simpleCommand(bot, name: str, user: telegram.User, chat: telegram.Chat,
+def simpleMessage(bot, name: str, user: telegram.User, chat: telegram.Chat,
                   cb_reply=None,
                   message: Optional[str]=None) -> telegram.Update:
     msg = telegram.Message(get_id(), from_user=user,
                            date=datetime.datetime.now(), chat=chat,
-                           text='/%s' % name,
+                           text=name,
                            reply_to_message=cb_reply, bot=bot)
     update = telegram.Update(get_id(), message=msg)
     update.message.reply_text = cb_reply
@@ -78,7 +78,7 @@ class TestBot(TestCase):
 
     def simpleCommand(self, name: str, cb_reply=None,
                       message: Optional[str]=None):
-        return simpleCommand(self.bot, name, self.user1, self.chat,
+        return simpleMessage(self.bot, '/%s' % name, self.user1, self.chat,
                              cb_reply, message)
 
     def simpleMessage(self, message: Optional[str]=None,
@@ -173,8 +173,13 @@ class TestFunctionalBot(TestCase):
 
     def simpleCommand(self, name: str, cb_reply=None,
                       message: Optional[str]=None):
-        return simpleCommand(self.bot, name, self.user1, self.chat,
+
+        return simpleMessage(self.bot, '/%s' % name, self.user1, self.chat,
                              cb_reply, message)
+
+    def simpleMessage(self, message, cb_reply=None):
+        return simpleMessage(self.bot, message, self.user1, self.chat,
+                             cb_reply, None)
 
     def store_received_string(self, recv_str: str):
         self.stored = recv_str
@@ -347,6 +352,49 @@ class TestFunctionalBot(TestCase):
                 self.user1_telegram_id, self.rut, self.store_received_string,
                 ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
         self.assertEqual(None, self.stored)
+
+    def testMessage(self):
+        expected = 'sample_msg'
+        update = self.simpleMessage(expected,
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testMessage(self):
+        expected = 'sample_msg2'
+        self.setRut()
+        update = self.simpleMessage(expected,
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testRutMessageSet(self):
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        update = self.simpleMessage(str(self.rut),
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+
+    def testRutMessage(self):
+        # This enrolls the user.
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        update = self.simpleMessage(str(self.rut),
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+
+    def testRutMessageError(self):
+        # This enrolls the user.
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('Error.htm'))
+        update = self.simpleMessage(str(self.rut),
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(Messages.INTENTE_NUEVAMENTE_ERROR, self.stored)
 
 
 class TestStart(TestCase):
