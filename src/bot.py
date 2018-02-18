@@ -54,12 +54,13 @@ TOKEN = os.getenv("BOT_TOKEN", None)
 HOURS_TO_UPDATE = 33
 
 RUNNING = True
-SUBSCRIBED: Queue = Queue()
+SUBSCRIBED = Queue()  # type: Queue
 
 
 class ValeVistaBot(object):
     # Testing purposes.
     username = "valevistabot"
+
     # Arguments are dependency injection for test purposes.
     def __init__(self, web_retriever: WebRetriever=None,
                  cache: model_interface.Cache=None) -> None:

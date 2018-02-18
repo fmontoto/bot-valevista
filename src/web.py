@@ -184,7 +184,7 @@ class Parser(object):
 
     @classmethod
     def _single_cache_string_to_raw_event(cls, string: str) -> RawEvent:
-        d: Dict[str, str] = OrderedDict()
+        d = OrderedDict()  # type: Dict[str, str]
         lines = string.split("\n")
         if len(lines) != 4:
             raise ParsingException('4 lines expected, got %d.' % len(lines))
@@ -202,7 +202,7 @@ class Parser(object):
             return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
 
         single_cache_strings = cache_string.split("\n\n")
-        raw_events: List[Event] = []
+        raw_events = []  # type: List[Event]
         for s in single_cache_strings:
             raw_events.append(cls._single_cache_string_to_raw_event(s))
         return WebResult(TypeOfWebResult.NO_ERROR, raw_events)
