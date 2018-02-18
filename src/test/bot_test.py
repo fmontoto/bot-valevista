@@ -396,6 +396,9 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.assertEqual(Messages.INTENTE_NUEVAMENTE_ERROR, self.stored)
 
+    def testStep(self):
+        self.assertTrue(False)
+
 
 class TestStart(TestCase):
 

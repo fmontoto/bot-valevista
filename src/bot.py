@@ -42,10 +42,11 @@ except FileNotFoundError:
     _log_handler = logging.StreamHandler()
     _log_handler.setLevel(logging.DEBUG)
 
-_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+_log_format = (
+        "%(asctime)s - %(name)s - [%(filename)s:%(lineno)d] - %(levelname)s "
+        "- %(message)s")
 _log_handler.setFormatter(logging.Formatter(_log_format))
 logger.addHandler(_log_handler)
-
 logger.info('Logging started')
 
 
