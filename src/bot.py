@@ -24,7 +24,7 @@ from src.model_interface import User, _start
 from src.model_interface import UserBadUseError, UserDoesNotExistError
 from src import model_interface
 from src.utils import Rut
-import src.utils
+from src import utils
 from src import web
 from src.web import ParsingException, Web, WebRetriever
 
