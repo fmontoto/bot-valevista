@@ -58,6 +58,8 @@ SUBSCRIBED: Queue = Queue()
 
 
 class ValeVistaBot(object):
+    # Testing purposes.
+    username = "valevistabot"
     # Arguments are dependency injection for test purposes.
     def __init__(self, web_retriever: WebRetriever=None,
                  cache: model_interface.Cache=None) -> None:
