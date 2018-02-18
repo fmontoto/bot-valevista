@@ -253,6 +253,19 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.assertEqual(expected, self.stored)
 
+    def testGetStoredRutOnEmpty(self):
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('no_pagos.html'))
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(Messages.NO_PAGOS, self.stored)
+        # Check when loading from cache.
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(Messages.NO_PAGOS, self.stored)
+
+
     def testSimpleQueryTheBankAndReply(self):
         expected = self._EXPECTED_ON_SUCCESS
         # This enrolls the user.

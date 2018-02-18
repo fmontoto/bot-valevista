@@ -200,6 +200,8 @@ class Parser(object):
             return WebResult(TypeOfWebResult.CLIENTE, [])
         if Messages.INTENTE_NUEVAMENTE_ERROR in cache_string:
             return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
+        if Messages.NO_PAGOS in cache_string:
+            return WebResult(TypeOfWebResult.NO_ERROR, [])
 
         single_cache_strings = cache_string.split("\n\n")
         raw_events = []  # type: List[Event]
@@ -209,6 +211,8 @@ class Parser(object):
 
     @classmethod
     def raw_events_to_cache_string(cls, raw_events: List[RawEvent]):
+        if not raw_events:
+            return Messages.NO_PAGOS
         strings = [str(e) for e in raw_events]
         return "\n\n".join(strings)
 

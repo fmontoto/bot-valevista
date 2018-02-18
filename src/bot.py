@@ -86,9 +86,9 @@ class ValeVistaBot(object):
     def get_rut(self, bot, update: telegram.Update):
         telegram_id = update.message.from_user.id
         logger.info("Get %s", telegram_id)
-        rut_ = User.get_rut(telegram_id)
-        if rut_:
-            return self.query_the_bank_and_reply(telegram_id, rut_,
+        rut = User.get_rut(telegram_id)
+        if rut:
+            return self.query_the_bank_and_reply(telegram_id, rut,
                                                  update.message.reply_text,
                                                  self.ReplyWhen.ALWAYS)
         update.message.reply_text(Messages.NO_RUT_MSG)
@@ -138,7 +138,7 @@ class ValeVistaBot(object):
         logger.info("Debug: %s, %s" % (bot, update))
 
     def error(self, bot, update: telegram.Update, error):
-        logger.warn("Update %s caused error %s" % (update, error))
+        logger.warn("Update %s caused error: %s" % (update, error))
 
     # Non command messages
     def msg(self, bot, update: telegram.Update):

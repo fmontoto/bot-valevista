@@ -69,7 +69,9 @@ class Messages(object):
 
     INTENTE_NUEVAMENTE_ERROR = (
             "La página del banco retornó con error y dice que intentes "
-            "nuevamente. Intenta nuevamente en unas horas")
+            "nuevamente. Intenta nuevamente en unas horas.")
+
+    NO_PAGOS = "Actualmente no hay pagos a tu favor."
 
     # ####################################### #
     # ###### Internal error messages. ####### #
