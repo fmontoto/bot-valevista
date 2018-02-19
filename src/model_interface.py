@@ -189,13 +189,15 @@ class Cache(object):
             session.add(c_result)
             session.commit()
             return True
+        if len(c_result) > 1:
+            logger.warning("Unexpected len of results in the db:%d", len(c_result))
         # If the new result is the same than the previous one onupdate is not
         # triggered and the timestamp of the cached result is not updated.
         if c_result[0].result == result:
-            c_result[0].retrieved = datetime.datetime.utcnow()
             changed = False
         else:
             c_result[0].result = result
             changed = True
+        c_result[0].retrieved = datetime.datetime.utcnow()
         session.commit()
         return changed
