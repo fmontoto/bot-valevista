@@ -74,53 +74,59 @@ class ValeVistaBot(object):
 
     # Command handlers.
     def start(self, bot, update: telegram.Update):
+        logger.debug('USR[%s]; START')
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
         update.message.reply_text(Messages.START_MSG % name)
 
     # Sends a help message to the user.
     def help(self, bot, update: telegram.Update):
+        logger.debug('USR[%s]; HELP', update.message.from_user.id)
         update.message.reply_text(Messages.HELP_MSG)
 
     # Query the service using the stored rut.
     def get_rut(self, bot, update: telegram.Update):
         telegram_id = update.message.from_user.id
-        logger.info("Get %s", telegram_id)
         rut = User.get_rut(telegram_id)
         if rut:
+            logger.debug('USR[%s]; GET_RUT[%s]', telegram_id, rut)
             return self.query_the_bank_and_reply(telegram_id, rut,
                                                  update.message.reply_text,
                                                  self.ReplyWhen.ALWAYS)
+        logger.debug('USR[%s]; GET_NO_RUT', telegram_id)
         update.message.reply_text(Messages.NO_RUT_MSG)
 
     def set_rut(self, bot, update: telegram.Update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
+            logger.debug('USR[%s]; EMPTY_RUT', update.message.from_user.id)
             update.message.reply_text(Messages.SET_EMPTY_RUT)
+            return
 
         rut = Rut.build_rut(spl[1])
 
         if rut is None:
+            logger.debug('USR[%s]; INVALID_RUT', update.message.from_user.id)
             update.message.reply_text(Messages.SET_INVALID_RUT)
             return
 
         User.set_rut(update.message.from_user.id, rut)
 
-        logger.info("User %s set rut %s", update.message.from_user.id,
-                    Rut._normalize_rut(spl[1]))
+        logger.debug("USR[%s]; SET_RUT[%s]", update.message.from_user.id, rut)
         update.message.reply_text(Messages.SET_RUT % rut)
 
     def subscribe(self, bot, update: telegram.Update):
+        logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
         try:
             User.subscribe(update.message.from_user.id, update.message.chat.id)
         except UserBadUseError as e:
             logger.warning(e.public_message)
             update.message.reply_text(e.public_message)
         else:
-            logger.info("User %s subscribed", update.message.from_user.id)
             update.message.reply_text(Messages.SUBSCRIBED)
 
     def unsubscribe(self, bot, update: telegram.Update):
+        logger.debug("USR:[%s]; UNSUBSC", update.message.from_user.id)
         try:
             User.unsubscribe(update.message.from_user.id,
                              update.message.chat.id)
@@ -143,7 +149,8 @@ class ValeVistaBot(object):
     # Non command messages
     def msg(self, bot, update: telegram.Update):
         # Log every msg received.
-        logger.info("MSG:[%s]", update.message.text)
+        logger.debug("USR:[%s]; MSG:[%s]", update.message.from_user.id,
+                     update.message.text)
         rut = Rut.build_rut(update.message.text)
         if rut:
             self.query_the_bank_and_reply(update.message.from_user.id, rut,
@@ -181,6 +188,7 @@ class ValeVistaBot(object):
             reply_fn(response)
         elif reply_when == self.ReplyWhen.IS_USEFUL_FOR_USER:
             if web_result.is_useful_info_for_user():
+                logger.debug('USR[%s]; Useful[%s]', telegram_id, response)
                 reply_fn(response)
         else:
             logger.error('Not handled enum: %s', reply_when)
