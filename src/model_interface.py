@@ -96,7 +96,7 @@ class User(object):
     def get_rut(cls, telegram_id):
         user = cls._get_user(telegram_id, True)
         if user.rut:
-            return Rut._build_rut_sin_digito(user.rut)
+            return Rut.build_rut_sin_digito(user.rut)
         return None
 
     @classmethod

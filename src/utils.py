@@ -39,10 +39,11 @@ class Rut(object):
         return Rut(num_rut, cls._digito_verificador(rut_sin_digito))
 
     @classmethod
-    def _build_rut_sin_digito(cls, rut: str):
+    def build_rut_sin_digito(cls, rut: str):
         """Crea un rut a partir de un string sin digito verificador."""
-        digito = cls._digito_verificador(rut)
-        return Rut(int(rut), digito)
+        rut_no_dots = rut.replace(',', '')
+        digito = cls._digito_verificador(rut_no_dots)
+        return Rut(int(rut_no_dots), digito)
 
     # Robado desde https://gist.github.com/rbonvall/464824
     @classmethod

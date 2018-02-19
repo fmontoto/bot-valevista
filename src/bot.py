@@ -203,20 +203,21 @@ def signal_handler(signum, frame):
         sys.exit(1)
 
 
-def step(updater, hours=HOURS_TO_UPDATE):
+def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
     logger.debug("To update queue length: %s", len(users_to_update))
     if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(
                 0, len(users_to_update) - 1)]
-        self.query_the_bank_and_reply(
-                user_to_update.telegram_id, user_to_update.rut,
+        rut = Rut.build_rut_sin_digito(user_to_update.rut)
+        valevista_bot.query_the_bank_and_reply(
+                user_to_update.telegram_id, rut,
                 partial(updater.bot.sendMessage,
                         User.get_chat_id(user_to_update.id)),
-                self.ReplyWhen.IS_USEFUL_FOR_USER)
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
 
 
-def loop(updater):
+def loop(updater, valevista_bot):
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
     for sig in stop_signals:
         signal(sig, signal_handler)
@@ -224,7 +225,7 @@ def loop(updater):
     while RUNNING:
         try:
             if utils.is_a_proper_time(datetime.datetime.utcnow()):
-                step(updater)
+                step(updater, valevista_bot)
         except Exception as e:
             logger.exception("step failed")
         time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes

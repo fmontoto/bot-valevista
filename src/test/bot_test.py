@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from src.test.model_interface_test import mock_model_interface, User
 from src.bot import ValeVistaBot
 from src.bot import add_handlers
+from src.bot import step
 from src import bot
 from src.utils import is_a_proper_time, Rut
 from src import model_interface
@@ -372,7 +373,7 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.assertEqual(expected, self.stored)
 
-    def testMessage(self):
+    def testMessageRutSet(self):
         expected = 'sample_msg2'
         self.setRut()
         update = self.simpleMessage(expected,
@@ -408,8 +409,42 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.assertEqual(Messages.INTENTE_NUEVAMENTE_ERROR, self.stored)
 
+    def testPreStep(self):
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)  # Process the subscription.
+        update = self.simpleCommand('get', cb_reply=self.store_received_string)
+        # Process the get to populate the cache.
+        self.dispatcher.process_update(update)
+        self.stored = None
+
+        self.assertFalse(User.get_subscriber_not_retrieved_hours_ago(1))
+        subscribers = User.get_subscriber_not_retrieved_hours_ago(0)
+        self.assertEqual(1, len(subscribers))
+
+    def sendMessageMock(self, chat_id, msg):
+        self.stored = msg
+
     def testStep(self):
-        self.assertTrue(False)
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)  # Process the subscription.
+
+        mocked_updater = MagicMock(telegram.ext.Updater)
+        mocked_updater.bot = MagicMock(telegram.Bot)
+        mocked_updater.bot.sendMessage = self.sendMessageMock
+        self.stored = None
+        step(mocked_updater, self.bot)
+        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.stored = None
+        step(mocked_updater, self.bot)
+        self.assertEqual(None, self.stored)
 
 
 class TestStart(TestCase):
