@@ -73,7 +73,7 @@ class ValeVistaBot(object):
         self._cache = cache or model_interface.Cache()
 
     # Command handlers.
-    def start(self, bot, update: telegram.Update):
+    def start(self, unused_bot, update: telegram.Update):
         logger.debug('USR[%s]; START')
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
@@ -90,9 +90,10 @@ class ValeVistaBot(object):
         rut = User.get_rut(telegram_id)
         if rut:
             logger.debug('USR[%s]; GET_RUT[%s]', telegram_id, rut)
-            return self.query_the_bank_and_reply(telegram_id, rut,
-                                                 update.message.reply_text,
-                                                 self.ReplyWhen.ALWAYS)
+            self.query_the_bank_and_reply(telegram_id, rut,
+                                          update.message.reply_text,
+                                          self.ReplyWhen.ALWAYS)
+            return
         logger.debug('USR[%s]; GET_NO_RUT', telegram_id)
         update.message.reply_text(Messages.NO_RUT_MSG)
 
@@ -141,7 +142,7 @@ class ValeVistaBot(object):
             update.message.reply_text(Messages.UNSUBSCRIBED)
 
     def debug(self, bot, update: telegram.Update):
-        logger.info("Debug: %s, %s" % (bot, update))
+        logger.info("Debug: %s, %s", bot, update)
 
     def error(self, bot, update: telegram.Update, error):
         logger.warn("Update %s caused error: %s" % (update, error))

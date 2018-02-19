@@ -11,19 +11,22 @@ from src import web
 
 
 class WebPageFromFileRetriever(web.WebRetriever):
+    def __init__(self, path: str=''):
+        self.path = path
+
     def setPath(self, path: str):
         self.path = path
 
     def retrieve(self, unused_rut: Rut):
         with codecs.open(self.path, "r", encoding='utf-8',
                          errors='ignore') as f:
-            web = f.read()
-        return web
+            web_page = f.read()
+        return web_page
 
 
 def TestFilesBasePath() -> pathlib.Path:
-        web_path = pathlib.Path(os.path.dirname(inspect.getfile(web)))
-        return web_path.joinpath('test/test_pages')
+    web_path = pathlib.Path(os.path.dirname(inspect.getfile(web)))
+    return web_path.joinpath('test/test_pages')
 
 
 class TestPublicParser(TestCase):
