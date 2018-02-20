@@ -216,16 +216,22 @@ def signal_handler(unused_signum, unused_frame):
 def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
     logger.debug("To update queue length: %s", len(users_to_update))
-    if len(users_to_update) > 0:
-        user_to_update = users_to_update[random.randint(
-                0, len(users_to_update) - 1)]
-        rut = Rut.build_rut_sin_digito(user_to_update.rut)
+    if len(users_to_update) == 0:
+        return
+
+    user_to_update = users_to_update[random.randint(
+            0, len(users_to_update) - 1)]
+    rut = Rut.build_rut_sin_digito(user_to_update.rut)
+    user_chat_id = User.get_chat_id(user_to_update.id)
+    try:
         valevista_bot.query_the_bank_and_reply(
                 user_to_update.telegram_id, rut,
-                partial(updater.bot.sendMessage,
-                        User.get_chat_id(user_to_update.id)),
+                partial(updater.bot.sendMessage, user_chat_id),
                 ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
-
+    except telegram.error.Unauthorized:
+        logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
+                     user_to_update.telegram_id)
+        User.unsubscribe(user_to_update.telegram_id, user_chat_id)
 
 def loop(updater, valevista_bot):
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
