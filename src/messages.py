@@ -8,7 +8,8 @@ class Messages(object):
             "Actualmente estoy en construcción.\n"
             "Para consultar si tienes vales vista pendientes en el banco, "
             "enviame el rut a consultar en un mensaje, por ejemplo: "
-            "12.345.678-9 o 12.345.678 o 12345678.\n"
+            "12.345.678-9, los puntos son opcionales, pero debes especificar "
+            "el dígito verificador separado con un guión.\n"
             "Si quieres que recuerde tu rut para consultarlo recurrentemente, "
             "envia: /set TU_RUT. Luego consúltalo enviando /get. \n"
             "Una vez que guardes tu rut envía /subscribe y revisaré "
@@ -25,7 +26,8 @@ class Messages(object):
             "https://https://github.com/fmontoto/bot-valevista, si estas de "
             "suerte alguien se puede apiadar y ayudarte. También feliz "
             "aceptaré Pull Requests con la solución a tu problema o con una "
-            "nueva funcionalidad."
+            "nueva funcionalidad. También me puedes hablar directamente a "
+            "@fmontoto"
     )
 
     SUBSCRIBED = (
