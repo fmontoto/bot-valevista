@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+""" Module implementing the main loop and the telegram API."""
+
 import enum
 import datetime
 from functools import partial
@@ -27,7 +29,7 @@ from src import utils
 from src import web
 from src.web import ParsingException, Web, WebRetriever
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 logger.setLevel(logging.DEBUG)
 
 # Rotating file handler, rotates every 4 mondays.
@@ -203,6 +205,17 @@ class ValeVistaBot(object):
         else:
             logger.error('Not handled enum: %s', reply_when)
 
+    def add_handlers(self, dispatcher: Dispatcher) -> None:
+        dispatcher.add_handler(CommandHandler("start", self.start))
+        dispatcher.add_handler(CommandHandler("set", self.set_rut))
+        dispatcher.add_handler(CommandHandler("get", self.get_rut))
+        dispatcher.add_handler(CommandHandler("debug", self.debug))
+        dispatcher.add_handler(CommandHandler("help", self.help))
+        dispatcher.add_handler(CommandHandler("subscribe", self.subscribe))
+        dispatcher.add_handler(CommandHandler("unsubscribe", self.unsubscribe))
+        dispatcher.add_handler(MessageHandler(Filters.text, self.msg))
+        dispatcher.add_error_handler(self.error)
+
 
 def signal_handler(unused_signum, unused_frame):
     global RUNNING  # pylint: disable=global-statement
@@ -216,7 +229,7 @@ def signal_handler(unused_signum, unused_frame):
 def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
     users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
     logger.debug("To update queue length: %s", len(users_to_update))
-    if len(users_to_update) == 0:
+    if not users_to_update:
         return
 
     user_to_update = users_to_update[random.randint(
@@ -233,6 +246,7 @@ def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
                      user_to_update.telegram_id)
         User.unsubscribe(user_to_update.telegram_id, user_chat_id)
 
+
 def loop(updater, valevista_bot):
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
     for sig in stop_signals:
@@ -248,18 +262,6 @@ def loop(updater, valevista_bot):
     updater.stop()
 
 
-def add_handlers(dispatcher: Dispatcher, bot: ValeVistaBot) -> None:
-    dispatcher.add_handler(CommandHandler("start", bot.start))
-    dispatcher.add_handler(CommandHandler("set", bot.set_rut))
-    dispatcher.add_handler(CommandHandler("get", bot.get_rut))
-    dispatcher.add_handler(CommandHandler("debug", bot.debug))
-    dispatcher.add_handler(CommandHandler("help", bot.help))
-    dispatcher.add_handler(CommandHandler("subscribe", bot.subscribe))
-    dispatcher.add_handler(CommandHandler("unsubscribe", bot.unsubscribe))
-    dispatcher.add_handler(MessageHandler(Filters.text, bot.msg))
-    dispatcher.add_error_handler(bot.error)
-
-
 def main():
     # Start the db
     _start()
@@ -267,9 +269,9 @@ def main():
 
     updater = Updater(TOKEN)
 
-    dp = updater.dispatcher
+    dispatcher = updater.dispatcher
 
-    add_handlers(dp, bot)
+    bot.add_handlers(dispatcher)
 
     updater.start_webhook(listen="0.0.0.0", port=443,
                           url_path="/bot-valevista")

@@ -1,4 +1,3 @@
-import codecs
 from collections import OrderedDict
 import datetime
 from enum import Enum
@@ -6,11 +5,12 @@ import logging
 import requests
 from typing import Dict, List
 
+import bs4
+
 from src.messages import Messages
 from src.model_interface import Cache, User
 from src.utils import Rut
 
-import bs4
 
 logger = logging.getLogger(__name__)
 

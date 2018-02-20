@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from src.test.model_interface_test import mock_model_interface, User
 from src.bot import ValeVistaBot
-from src.bot import add_handlers
 from src.bot import step
 from src import bot
 from src.utils import is_a_proper_time, Rut
@@ -60,7 +59,7 @@ class TestBot(TestCase):
                                    username='ujohn', is_bot=False)
         self.chat = telegram.Chat(get_id(), type='private', username='ujohn',
                                   first_name='john')
-        add_handlers(self.dispatcher, self.bot)
+        self.bot.add_handlers(self.dispatcher)
         self.pass_test = True
         self.rut = Rut.build_rut('2343234-k')
         self.rut_non_std_str = '2343.234-k'
@@ -163,7 +162,7 @@ class TestFunctionalBot(TestCase):
                                    is_bot=False)
         self.chat = telegram.Chat(get_id(), type='private', username='ujohn',
                                   first_name='john')
-        add_handlers(self.dispatcher, self.bot)
+        self.bot.add_handlers(self.dispatcher)
         self.pass_test = True
         self.rut = Rut.build_rut('2343234-k')
         self.rut2 = Rut.build_rut('12444333-4')
