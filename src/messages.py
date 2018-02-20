@@ -60,6 +60,10 @@ class Messages(object):
 
     ALREADY_SUBSCRIBED = "Ya estás registrado."
 
+    LOOKS_LIKE_RUT = (
+            "Esto parece ser un rut, para ingresar un rut por favor incluye "
+            "el digito verificador separado por un guión (-)")
+
     # ####################################### #
     # ###### Web parser err messages. ####### #
     # ####################################### #

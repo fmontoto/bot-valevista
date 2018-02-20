@@ -157,6 +157,8 @@ class ValeVistaBot(object):
             self.query_the_bank_and_reply(update.message.from_user.id, rut,
                                           update.message.reply_text,
                                           self.ReplyWhen.ALWAYS)
+        elif Rut.looks_like_rut(update.message.text):
+            update.message.reply_text(Messages.LOOKS_LIKE_RUT)
         else:
             self.echo(bot, update)
 

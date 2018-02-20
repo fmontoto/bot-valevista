@@ -381,6 +381,13 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.assertEqual(expected, self.stored)
 
+    def testMessageLooksLikeRut(self):
+        self.setRut()
+        update = self.simpleMessage('28345213',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(Messages.LOOKS_LIKE_RUT, self.stored)
+
     def testRutMessageSet(self):
         # This enrolls the user.
         self.setRut()

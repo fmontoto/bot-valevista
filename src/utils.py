@@ -79,6 +79,16 @@ class Rut(object):
         else:  # Remover el digito verificador con guion, si es que tiene
             return dot_and_leading_zero_removed[:-len(match.group(1))]
 
+    @staticmethod
+    def looks_like_rut(rut: str):
+        """True if the string looks like a rut without digito verificador."""
+        clean_rut = rut.replace('.', '').strip()
+        reg = re.compile('^[0-9]{7,9}$')
+        match = reg.match(clean_rut)
+        if match:
+            return True
+        return False
+
 
 # Check whether is a proper time to send an automated message to an user.
 def is_a_proper_time(now: datetime.datetime) -> bool:
