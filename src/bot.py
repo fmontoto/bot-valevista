@@ -12,7 +12,6 @@ import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 import sys
 import time
-from typing import Text
 
 from telegram.ext import CommandHandler, Dispatcher, Filters, MessageHandler
 from telegram.ext import Updater
@@ -64,8 +63,8 @@ class ValeVistaBot(object):
     username = "valevistabot"
 
     # Arguments are dependency injection for test purposes.
-    def __init__(self, web_retriever: WebRetriever=None,
-                 cache: model_interface.Cache=None) -> None:
+    def __init__(self, web_retriever: WebRetriever = None,
+                 cache: model_interface.Cache = None) -> None:
         if web_retriever is None:
             self._web_retriever = web.WebPageDownloader()  # type: WebRetriever
         else:
@@ -73,19 +72,21 @@ class ValeVistaBot(object):
         self._cache = cache or model_interface.Cache()
 
     # Command handlers.
-    def start(self, unused_bot, update: telegram.Update):
+    @staticmethod
+    def start(unused_bot, update: telegram.Update):
         logger.debug('USR[%s]; START')
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
         update.message.reply_text(Messages.START_MSG % name)
 
     # Sends a help message to the user.
-    def help(self, bot, update: telegram.Update):
+    @staticmethod
+    def help(unused_bot, update: telegram.Update):
         logger.debug('USR[%s]; HELP', update.message.from_user.id)
         update.message.reply_text(Messages.HELP_MSG)
 
     # Query the service using the stored rut.
-    def get_rut(self, bot, update: telegram.Update):
+    def get_rut(self, unused_bot, update: telegram.Update):
         telegram_id = update.message.from_user.id
         rut = User.get_rut(telegram_id)
         if rut:
@@ -97,7 +98,8 @@ class ValeVistaBot(object):
         logger.debug('USR[%s]; GET_NO_RUT', telegram_id)
         update.message.reply_text(Messages.NO_RUT_MSG)
 
-    def set_rut(self, bot, update: telegram.Update):
+    @staticmethod
+    def set_rut(unused_bot, update: telegram.Update):
         spl = update.message.text.split(' ')
         if len(spl) < 2:
             logger.debug('USR[%s]; EMPTY_RUT', update.message.from_user.id)
@@ -116,7 +118,8 @@ class ValeVistaBot(object):
         logger.debug("USR[%s]; SET_RUT[%s]", update.message.from_user.id, rut)
         update.message.reply_text(Messages.SET_RUT % rut)
 
-    def subscribe(self, bot, update: telegram.Update):
+    @staticmethod
+    def subscribe(unused_bot, update: telegram.Update):
         logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
         try:
             User.subscribe(update.message.from_user.id, update.message.chat.id)
@@ -126,7 +129,8 @@ class ValeVistaBot(object):
         else:
             update.message.reply_text(Messages.SUBSCRIBED)
 
-    def unsubscribe(self, bot, update: telegram.Update):
+    @staticmethod
+    def unsubscribe(unused_bot, update: telegram.Update):
         logger.debug("USR:[%s]; UNSUBSC", update.message.from_user.id)
         try:
             User.unsubscribe(update.message.from_user.id,
@@ -141,11 +145,13 @@ class ValeVistaBot(object):
             logger.info("User %s unsubscribed", update.message.from_user.id)
             update.message.reply_text(Messages.UNSUBSCRIBED)
 
-    def debug(self, bot, update: telegram.Update):
+    @staticmethod
+    def debug(bot, update: telegram.Update):
         logger.info("Debug: %s, %s", bot, update)
 
-    def error(self, bot, update: telegram.Update, error):
-        logger.warn("Update %s caused error: %s" % (update, error))
+    @staticmethod
+    def error(unused_bot, update: telegram.Update, error):
+        logger.warning("Update %s caused error: %s", update, error)
 
     # Non command messages
     def msg(self, bot, update: telegram.Update):
@@ -163,7 +169,8 @@ class ValeVistaBot(object):
             self.echo(bot, update)
 
     # Non telegram handlers.
-    def echo(self, bot, update):
+    @staticmethod
+    def echo(unused_bot, update):
         update.message.reply_text(update.message.text)
 
     class ReplyWhen(enum.Enum):
@@ -181,7 +188,7 @@ class ValeVistaBot(object):
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(e.public_message)
             return
-        except Exception as e:
+        except Exception as e:  #pylint: disable=broad-except
             logger.exception("Error:")
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(Messages.INTERNAL_ERROR)
@@ -197,8 +204,8 @@ class ValeVistaBot(object):
             logger.error('Not handled enum: %s', reply_when)
 
 
-def signal_handler(signum, frame):
-    global RUNNING
+def signal_handler(unused_signum, unused_frame):
+    global RUNNING  #pylint: disable=global-statement
     if RUNNING:
         RUNNING = False
     else:
@@ -229,7 +236,7 @@ def loop(updater, valevista_bot):
         try:
             if utils.is_a_proper_time(datetime.datetime.utcnow()):
                 step(updater, valevista_bot)
-        except Exception as e:
+        except Exception:  #pylint: disable=broad-except
             logger.exception("step failed")
         time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
     updater.stop()
@@ -260,7 +267,7 @@ def main():
 
     updater.start_webhook(listen="0.0.0.0", port=443,
                           url_path="/bot-valevista")
-    loop(updater)
+    loop(updater, bot)
 
 
 if __name__ == "__main__":

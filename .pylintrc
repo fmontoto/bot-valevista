@@ -1,0 +1,4 @@
+[Format]
+
+# Number of spaces of indent required inside a hanging or continued line.
+indent-after-paren=8
