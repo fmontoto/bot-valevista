@@ -66,6 +66,11 @@ class Messages(object):
             "Esto parece ser un rut, para ingresar un rut por favor incluye "
             "el digito verificador separado por un guión (-)")
 
+    FROM_NON_PRIVATE_CHAT = (
+            "Lamentablemente de momento solo soportamos chats privados con el "
+            "bot."
+    )
+
     # ####################################### #
     # ###### Web parser err messages. ####### #
     # ####################################### #

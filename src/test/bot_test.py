@@ -160,8 +160,9 @@ class TestFunctionalBot(TestCase):
         self.user1 = telegram.User(id=self.user1_telegram_id,
                                    first_name='john', username='ujohn',
                                    is_bot=False)
-        self.chat = telegram.Chat(get_id(), type='private', username='ujohn',
-                                  first_name='john')
+        self.chat_id = get_id()
+        self.chat = telegram.Chat(self.chat_id, type='private',
+                                  username='ujohn', first_name='john')
         self.bot.add_handlers(self.dispatcher)
         self.pass_test = True
         self.rut = Rut.build_rut('2343234-k')
@@ -194,6 +195,14 @@ class TestFunctionalBot(TestCase):
         expected = Messages.SUBSCRIBE_NO_RUT
         update = self.simpleCommand('subscribe',
                                     cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)
+        self.assertEqual(expected, self.stored)
+
+    def testSubscribeNonPrivate(self):
+        expected = Messages.FROM_NON_PRIVATE_CHAT
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        update.message.chat.type = 'group'
         self.dispatcher.process_update(update)
         self.assertEqual(expected, self.stored)
 
@@ -450,6 +459,30 @@ class TestFunctionalBot(TestCase):
         self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
         self.stored = None
         step(mocked_updater, self.bot)
+        self.assertEqual(None, self.stored)
+
+    def testStepUnauthorized(self):
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)  # Process the subscription.
+        self.assertTrue(
+                User.is_subscribed(self.user1_telegram_id, self.chat_id))
+
+        mocked_updater = MagicMock(telegram.ext.Updater)
+        mocked_updater.bot = MagicMock(telegram.Bot)
+        mocked_updater.bot.sendMessage = self.sendMessageMock
+
+        mocked_query_the_bank = MagicMock(
+            side_effect=telegram.error.Unauthorized('unauthorized'))
+        self.bot.query_the_bank_and_reply = mocked_query_the_bank
+
+        self.stored = None
+        step(mocked_updater, self.bot)
+        self.assertFalse(
+                User.is_subscribed(self.user1_telegram_id, self.chat_id))
         self.assertEqual(None, self.stored)
 
 

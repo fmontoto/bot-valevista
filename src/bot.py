@@ -123,6 +123,12 @@ class ValeVistaBot(object):
     @staticmethod
     def subscribe(unused_bot, update: telegram.Update):
         logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
+        chat_type = update.message.chat.type
+        if chat_type != 'private':
+            logger.debug('USR[%s]; FROM NON PRIVATE CHAT[%s]',
+                         update.message.from_user.id, chat_type)
+            update.message.reply_text(Messages.FROM_NON_PRIVATE_CHAT)
+            return
         try:
             User.subscribe(update.message.from_user.id, update.message.chat.id)
         except UserBadUseError as e:
