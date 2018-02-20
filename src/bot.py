@@ -188,7 +188,7 @@ class ValeVistaBot(object):
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(e.public_message)
             return
-        except Exception as e:  #pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             logger.exception("Error:")
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(Messages.INTERNAL_ERROR)
@@ -205,7 +205,7 @@ class ValeVistaBot(object):
 
 
 def signal_handler(unused_signum, unused_frame):
-    global RUNNING  #pylint: disable=global-statement
+    global RUNNING  # pylint: disable=global-statement
     if RUNNING:
         RUNNING = False
     else:
@@ -236,7 +236,7 @@ def loop(updater, valevista_bot):
         try:
             if utils.is_a_proper_time(datetime.datetime.utcnow()):
                 step(updater, valevista_bot)
-        except Exception:  #pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             logger.exception("step failed")
         time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
     updater.stop()

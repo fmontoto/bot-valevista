@@ -61,7 +61,6 @@ class TestRutClassMethods(TestCase):
                          str(Rut.build_rut('2343234-K')))
 
     def test_looks_like_rut(self):
-        import pdb; pdb.set_trace()
         self.assertTrue(Rut.looks_like_rut('12.444.333'))
         self.assertTrue(Rut.looks_like_rut('12444333'))
         self.assertTrue(Rut.looks_like_rut('2444333'))
