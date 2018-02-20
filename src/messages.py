@@ -24,10 +24,8 @@ class Messages(object):
             "Si tienes comentarios/sugerencias/quejas abre un issue en la "
             "página de  github del proyecto: "
             "https://https://github.com/fmontoto/bot-valevista, si estas de "
-            "suerte alguien se puede apiadar y ayudarte. También feliz "
-            "aceptaré Pull Requests con la solución a tu problema o con una "
-            "nueva funcionalidad. También me puedes hablar directamente a "
-            "@fmontoto"
+            "suerte alguien se puede apiadar y ayudarte. También le puedes "
+            "hablar directamente a mi creador: @fmontoto"
     )
 
     SUBSCRIBED = (
