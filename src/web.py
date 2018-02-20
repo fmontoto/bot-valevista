@@ -302,5 +302,8 @@ class Web(object):
         # If the info was already in the cache, not useful.
         if not self.did_cache_change():
             return False
+        # If no results, not useful.
+        if not self.raw_events_web_result.get_events():
+            return False
         # TODO(fmontoto): Check if there is useful new data in the result.
         return True
