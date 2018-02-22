@@ -38,15 +38,17 @@ class Messages(object):
     UNSUBSCRIBED = (
             "Ya no estás subscrito, para volver a estarlo, envía /subscribe.")
 
+    SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
+               "directamente. Y recuerda que enviando /subscribe revisaré "
+               "periodicaménte la página del banco para avisarte tan pronto "
+               "detecte cambios.")
+
     # ####################################### #
     # ######## User errors messages. ######## #
     # ####################################### #
 
     NO_RUT_MSG = (
             "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
-
-    SET_RUT = ("Rut:%s guardado correctamente\n Envía /get para consultar "
-               "directamente.")
 
     SET_EMPTY_RUT = "Especifica el rut para poder guardarlo."
 

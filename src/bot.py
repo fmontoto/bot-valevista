@@ -34,23 +34,24 @@ logger.setLevel(logging.DEBUG)
 
 # Rotating file handler, rotates every 4 mondays.
 try:
-    _log_handler = logging.handlers.TimedRotatingFileHandler(
+    _LOG_HANDLER = logging.handlers.TimedRotatingFileHandler(
             'log/bot.log', when='W0', interval=4,
             utc=True)  # type: logging.Handler
-    _log_handler.setLevel(logging.DEBUG)
+    _LOG_HANDLER.setLevel(logging.DEBUG)
 except FileNotFoundError:
     print('log dir not found for file logging')
-    _log_handler = logging.StreamHandler()
-    _log_handler.setLevel(logging.DEBUG)
+    _LOG_HANDLER = logging.StreamHandler()
+    _LOG_HANDLER.setLevel(logging.DEBUG)
 
-_log_format = (
+_LOG_FORMAT = (
         "%(asctime)s - %(name)s - [%(filename)s:%(lineno)d] - %(levelname)s "
         "- %(message)s")
-_log_handler.setFormatter(logging.Formatter(_log_format))
-logger.addHandler(_log_handler)
+_LOG_HANDLER.setFormatter(logging.Formatter(_LOG_FORMAT))
+logger.addHandler(_LOG_HANDLER)
 logger.info('Logging started')
 
 
+# Gets the bot token from the environment.
 TOKEN = os.getenv("BOT_TOKEN", None)
 
 # Minimum hours before automatically update a cached result from a user
@@ -61,6 +62,7 @@ SUBSCRIBED = Queue()  # type: Queue
 
 
 class ValeVistaBot(object):
+    """Class with all the telegram handlers for the bot."""
     # Testing purposes.
     username = "valevistabot"
 
@@ -76,7 +78,8 @@ class ValeVistaBot(object):
     # Command handlers.
     @staticmethod
     def start(unused_bot, update: telegram.Update):
-        logger.debug('USR[%s]; START')
+        """Prints the start message."""
+        logger.debug('USR[%s]; START', update.message.from_user.id)
         name = (update.message.from_user.first_name or
                 update.message.from_user.username)
         update.message.reply_text(Messages.START_MSG % name)
@@ -84,11 +87,13 @@ class ValeVistaBot(object):
     # Sends a help message to the user.
     @staticmethod
     def help(unused_bot, update: telegram.Update):
+        """Prints help message."""
         logger.debug('USR[%s]; HELP', update.message.from_user.id)
         update.message.reply_text(Messages.HELP_MSG)
 
     # Query the service using the stored rut.
     def get_rut(self, unused_bot, update: telegram.Update):
+        """Query info for a previously set rut."""
         telegram_id = update.message.from_user.id
         rut = User.get_rut(telegram_id)
         if rut:
@@ -102,6 +107,7 @@ class ValeVistaBot(object):
 
     @staticmethod
     def set_rut(unused_bot, update: telegram.Update):
+        """Set a rut to easily query it in the future."""
         spl = update.message.text.split(' ')
         if len(spl) < 2:
             logger.debug('USR[%s]; EMPTY_RUT', update.message.from_user.id)
@@ -122,6 +128,7 @@ class ValeVistaBot(object):
 
     @staticmethod
     def subscribe(unused_bot, update: telegram.Update):
+        """Subscribe and get updates on valevista changes for your rut."""
         logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
         chat_type = update.message.chat.type
         if chat_type != 'private':
@@ -139,6 +146,7 @@ class ValeVistaBot(object):
 
     @staticmethod
     def unsubscribe(unused_bot, update: telegram.Update):
+        """Stop getting updates."""
         logger.debug("USR:[%s]; UNSUBSC", update.message.from_user.id)
         try:
             User.unsubscribe(update.message.from_user.id,
@@ -155,14 +163,17 @@ class ValeVistaBot(object):
 
     @staticmethod
     def debug(bot, update: telegram.Update):
+        """Telegram framework debug handler."""
         logger.info("Debug: %s, %s", bot, update)
 
     @staticmethod
     def error(unused_bot, update: telegram.Update, error):
+        """Telegram framework error handler."""
         logger.warning("Update %s caused error: %s", update, error)
 
     # Non command messages
     def msg(self, bot, update: telegram.Update):
+        """Handler when a message arrives."""
         # Log every msg received.
         logger.debug("USR:[%s]; MSG:[%s]", update.message.from_user.id,
                      update.message.text)
@@ -179,6 +190,7 @@ class ValeVistaBot(object):
     # Non telegram handlers.
     @staticmethod
     def echo(unused_bot, update):
+        """Replies with the message received."""
         update.message.reply_text(update.message.text)
 
     class ReplyWhen(enum.Enum):
@@ -196,7 +208,7 @@ class ValeVistaBot(object):
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(e.public_message)
             return
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             logger.exception("Error:")
             if reply_when == self.ReplyWhen.ALWAYS:
                 reply_fn(Messages.INTERNAL_ERROR)
@@ -211,7 +223,9 @@ class ValeVistaBot(object):
         else:
             logger.error('Not handled enum: %s', reply_when)
 
+    # Bot helping functions.
     def add_handlers(self, dispatcher: Dispatcher) -> None:
+        """Adds all ValeVistaBot handlers to 'dispatcher'."""
         dispatcher.add_handler(CommandHandler("start", self.start))
         dispatcher.add_handler(CommandHandler("set", self.set_rut))
         dispatcher.add_handler(CommandHandler("get", self.get_rut))
@@ -254,6 +268,7 @@ def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
 
 
 def loop(updater, valevista_bot):
+    """Background loop to check for updates."""
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
     for sig in stop_signals:
         signal(sig, signal_handler)
@@ -269,6 +284,7 @@ def loop(updater, valevista_bot):
 
 
 def main():
+    """Entry point."""
     # Start the db
     _start()
     bot = ValeVistaBot()
