@@ -90,3 +90,6 @@ class Messages(object):
 
     INTERNAL_ERROR = ("¡Ups! Un error inesperado ha ocurrido, lo "
                       "solucionaremos a la brevedad (?)")
+
+    PARSER_ERROR = ("No pude parser la respuesta del banco :(. "
+                    "Espero que pronto algún humano solucione esto.")

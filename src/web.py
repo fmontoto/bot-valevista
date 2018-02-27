@@ -1,9 +1,11 @@
+"""Module to retrieve and parse results from the bank web page."""
+
 from collections import OrderedDict
 import datetime
 from enum import Enum
 import logging
-import requests
 from typing import Dict, List
+import requests
 
 import bs4
 
@@ -12,10 +14,11 @@ from src.model_interface import Cache, User
 from src.utils import Rut
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class ParsingException(Exception):
+    """Error when trying to parse results."""
     def __init__(self, public_message):
         super(ParsingException, self).__init__(public_message)
         self.public_message = public_message
@@ -106,9 +109,9 @@ class WebPageDownloader(WebRetriever):
             logger.exception("Connection error")
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
-        if(r.status_code != 200):
-            logger.warn("Couldn't get the page, error %s:%s" % (r.status_code,
-                                                                r.reason))
+        if r.status_code != 200:
+            logger.warning("Couldn't get the page, error %s:%s",
+                           r.status_code, r.reason)
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
 
@@ -118,6 +121,7 @@ class WebPageDownloader(WebRetriever):
 class Parser(object):
     @classmethod
     def _parse_date(cls, date: str) -> datetime.date:
+        """Parse a dd/mm/yyyy date into a date object."""
         split = date.split('/')
         try:
             day = int(split[0].strip())
@@ -125,8 +129,8 @@ class Parser(object):
             year = int(split[2].strip())
             return datetime.date(year, month, day)
         except Exception:
-            logger.error('Could not parse a date: %s', date)
-            raise ParsingException('No pude parsear la pagina del banco.')
+            logger.exception('Could not parse a date: %s', date)
+            raise ParsingException(Messages.PARSER_ERROR)
 
     @classmethod
     def _parse_event_type(cls, event_type: str) -> TypeOfEvent:
@@ -135,11 +139,11 @@ class Parser(object):
             return TypeOfEvent.PAGADO_RENDIDO
         if 'vigente' in event and 'rendido' in event:
             return TypeOfEvent.VIGENTE_RENDIDO
-        if ('vigente' in event and
-                ('rendición' in event or 'rendicion' in event)):
+        if ('vigente' in event and ('rendición' in event or
+                                    'rendicion' in event)):
             return TypeOfEvent.VIGENTE_EN_RENDICION
         logger.error('Unable to parse event_type:%s', event_type)
-        raise ParsingException('No pude parsear la respuesta del banco :(')
+        raise ParsingException(Messages.PARSER_ERROR)
 
     @classmethod
     def _raw_events_to_new_events(cls, raw_events: List[RawEvent]):
@@ -155,7 +159,7 @@ class Parser(object):
         # Experimental, errors here are not fatal.
         try:
             return cls._raw_events_to_new_events(events)
-        except Exception as e:
+        except Exception:  #pylint: disable=broad-except
             logger.exception('While trying to parse:\n%s\n', events)
             return []
 
@@ -166,7 +170,7 @@ class Parser(object):
                 'table')[1].find_all('tr')[5].find_all('tr')
         if table[0].td.text != '\nFecha de Pago':
             logger.error('Unexpected webpage:\n%s', raw_page)
-            raise ParsingException('No pude parsear la respuesta del banco.')
+            raise ParsingException(Messages.PARSER_ERROR)
         events = []
         for i in range(1, len(table) - 1):
             data = table[i].find_all('td')
@@ -230,9 +234,9 @@ class Parser(object):
 
         try:
             raw_events = cls._raw_page_to_raw_events(raw_page)
-        except Exception as e:
+        except Exception as exception:
             logger.exception('While trying to parse \n%s\n', raw_page)
-            raise e
+            raise exception
 
         return WebResult(TypeOfWebResult.NO_ERROR, raw_events)
 
@@ -240,13 +244,13 @@ class Parser(object):
 class Web(object):
 
     def __init__(self, rut: Rut, telegram_user_id: int,
-                 web_retriever: WebRetriever=WebPageDownloader(),
-                 cache: Cache=Cache()) -> None:
+                 web_retriever: WebRetriever = WebPageDownloader(),
+                 cache: Cache = Cache()) -> None:
         self.rut = rut
         self._retrieve(telegram_user_id, web_retriever, cache)
         try:
             self._parse_new_results()
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-except
             self._events = None
             logger.exception('New results parsing failed.')
 
@@ -276,7 +280,7 @@ class Web(object):
             self._cache_changed = cache.update(user_id, self.rut,
                                                self._old_cache_and_user_str)
         # Non fatal error.
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-except
             logger.exception("Unable to update the cache")
         self.raw_events_web_result = raw_events_web_result
 
@@ -288,10 +292,11 @@ class Web(object):
     def get_results(self):
         return self._old_cache_and_user_str
 
-    def did_cache_change(self):
+    def _did_cache_change(self):
         return self._cache_changed
 
     def is_useful_info_for_user(self) -> bool:
+        """Whether the data in this result is useful for the user or not."""
         web_result_type = self.raw_events_web_result.get_type()
         # If error, not useful.
         if web_result_type != TypeOfWebResult.NO_ERROR:
@@ -300,7 +305,7 @@ class Web(object):
         if not self._old_cache_and_user_str:
             return False
         # If the info was already in the cache, not useful.
-        if not self.did_cache_change():
+        if not self._did_cache_change():
             return False
         # If no results, not useful.
         if not self.raw_events_web_result.get_events():
