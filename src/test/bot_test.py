@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from src.test.model_interface_test import mock_model_interface, User
 from src.bot import ValeVistaBot
-from src.bot import step
 from src import bot
 from src.utils import is_a_proper_time, Rut
 from src import model_interface
@@ -455,10 +454,10 @@ class TestFunctionalBot(TestCase):
         mocked_updater.bot = MagicMock(telegram.Bot)
         mocked_updater.bot.sendMessage = self.sendMessageMock
         self.stored = None
-        step(mocked_updater, self.bot)
+        self.bot.step(mocked_updater)
         self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
         self.stored = None
-        step(mocked_updater, self.bot)
+        self.bot.step(mocked_updater)
         self.assertEqual(None, self.stored)
 
     def testStepUnauthorized(self):
@@ -480,7 +479,7 @@ class TestFunctionalBot(TestCase):
         self.bot.query_the_bank_and_reply = mocked_query_the_bank
 
         self.stored = None
-        step(mocked_updater, self.bot)
+        self.bot.step(mocked_updater)
         self.assertFalse(
                 User.is_subscribed(self.user1_telegram_id, self.chat_id))
         self.assertEqual(None, self.stored)

@@ -57,7 +57,6 @@ TOKEN = os.getenv("BOT_TOKEN", None)
 # Minimum hours before automatically update a cached result from a user
 HOURS_TO_UPDATE = 33
 
-RUNNING = True
 SUBSCRIBED = Queue()  # type: Queue
 
 
@@ -74,6 +73,7 @@ class ValeVistaBot(object):
         else:
             self._web_retriever = web_retriever
         self._cache = cache or model_interface.Cache()
+        self._running = True
 
     # Command handlers.
     @staticmethod
@@ -138,9 +138,9 @@ class ValeVistaBot(object):
             return
         try:
             User.subscribe(update.message.from_user.id, update.message.chat.id)
-        except UserBadUseError as e:
-            logger.warning(e.public_message)
-            update.message.reply_text(e.public_message)
+        except UserBadUseError as bad_user_exep:
+            logger.warning(bad_user_exep.public_message)
+            update.message.reply_text(bad_user_exep.public_message)
         else:
             update.message.reply_text(Messages.SUBSCRIBED)
 
@@ -151,11 +151,11 @@ class ValeVistaBot(object):
         try:
             User.unsubscribe(update.message.from_user.id,
                              update.message.chat.id)
-        except UserBadUseError as e:
-            logger.warning(e.public_message)
-            update.message.reply_text(e.public_message)
-        except UserDoesNotExistError as e:
-            logger.warning(e.public_message)
+        except UserBadUseError as bad_user_exep:
+            logger.warning(bad_user_exep.public_message)
+            update.message.reply_text(bad_user_exep.public_message)
+        except UserDoesNotExistError as user_exep:
+            logger.warning(user_exep.public_message)
             update.message.reply_text(Messages.UNSUBSCRIBE_NON_SUBSCRIBED)
         else:
             logger.info("User %s unsubscribed", update.message.from_user.id)
@@ -194,19 +194,27 @@ class ValeVistaBot(object):
         update.message.reply_text(update.message.text)
 
     class ReplyWhen(enum.Enum):
-        ALWAYS = 1
-        IS_USEFUL_FOR_USER = 2
+        """When to send a message to the user."""
+        ALWAYS = 1  # Send a message even if not useful data is found.
+        IS_USEFUL_FOR_USER = 2  # Only send a message if there is useful data.
 
     def query_the_bank_and_reply(self, telegram_id: int, rut: Rut, reply_fn,
                                  reply_when: ReplyWhen):
+        """Query the bank for updates, and send a message to the user.
+
+        If reply_when is set to always, send a message to the user even if
+        there are no changes from the last time we queried. Otherwise will
+        send a message to the user only if new and useful information was
+        retrieved.
+        """
         try:
             web_result = Web(rut, telegram_id, self._web_retriever,
                              self._cache)
             response = web_result.get_results()
         # Expected exception.
-        except ParsingException as e:
+        except ParsingException as parsing_exep:
             if reply_when == self.ReplyWhen.ALWAYS:
-                reply_fn(e.public_message)
+                reply_fn(parsing_exep.public_message)
             return
         except Exception:  # pylint: disable=broad-except
             logger.exception("Error:")
@@ -236,58 +244,62 @@ class ValeVistaBot(object):
         dispatcher.add_handler(MessageHandler(Filters.text, self.msg))
         dispatcher.add_error_handler(self.error)
 
+    def signal_handler(self, unused_signum, unused_frame):
+        """Gracefully stops the bot on a received signal."""
+        if self._running:
+            self._running = False
+        else:
+            logger.error("Exiting now!")
+            sys.exit(1)
 
-def signal_handler(unused_signum, unused_frame):
-    global RUNNING  # pylint: disable=global-statement
-    if RUNNING:
-        RUNNING = False
-    else:
-        logger.error("Exiting now!")
-        sys.exit(1)
+    def step(self, updater, hours=HOURS_TO_UPDATE):
+        """Checks the bank for subscribed users.
 
+        If useful new data is available, send a message to the user.
+        """
+        users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
+        logger.debug("To update queue length: %s", len(users_to_update))
+        if not users_to_update:
+            return
 
-def step(updater, valevista_bot, hours=HOURS_TO_UPDATE):
-    users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
-    logger.debug("To update queue length: %s", len(users_to_update))
-    if not users_to_update:
-        return
-
-    user_to_update = users_to_update[random.randint(
-            0, len(users_to_update) - 1)]
-    rut = Rut.build_rut_sin_digito(user_to_update.rut)
-    user_chat_id = User.get_chat_id(user_to_update.id)
-    try:
-        valevista_bot.query_the_bank_and_reply(
-                user_to_update.telegram_id, rut,
-                partial(updater.bot.sendMessage, user_chat_id),
-                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
-    except telegram.error.Unauthorized:
-        logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
-                     user_to_update.telegram_id)
-        User.unsubscribe(user_to_update.telegram_id, user_chat_id)
-
-
-def loop(updater, valevista_bot):
-    """Background loop to check for updates."""
-    stop_signals = (SIGINT, SIGTERM, SIGABRT)
-    for sig in stop_signals:
-        signal(sig, signal_handler)
-
-    while RUNNING:
+        user_to_update = users_to_update[random.randint(
+                0, len(users_to_update) - 1)]
+        rut = Rut.build_rut_sin_digito(user_to_update.rut)
+        user_chat_id = User.get_chat_id(user_to_update.id)
         try:
-            if utils.is_a_proper_time(datetime.datetime.utcnow()):
-                step(updater, valevista_bot)
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("step failed")
-        time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
-    updater.stop()
+            self.query_the_bank_and_reply(
+                    user_to_update.telegram_id, rut,
+                    partial(updater.bot.sendMessage, user_chat_id),
+                    ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        except telegram.error.Unauthorized:
+            logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
+                         user_to_update.telegram_id)
+            User.unsubscribe(user_to_update.telegram_id, user_chat_id)
+
+    def loop(self, updater):
+        """Background loop to check for updates."""
+
+        while self._running:
+            try:
+                if utils.is_a_proper_time(datetime.datetime.utcnow()):
+                    self.step(updater)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("step failed")
+            # Between 5 and 25 minutes
+            time.sleep(random.randint(5 * 60, 25 * 60))
+        updater.stop()
 
 
 def main():
     """Entry point."""
     # Start the db
     _start()
+
     bot = ValeVistaBot()
+
+    stop_signals = (SIGINT, SIGTERM, SIGABRT)
+    for sig in stop_signals:
+        signal(sig, bot.signal_handler)
 
     updater = Updater(TOKEN)
 
@@ -297,7 +309,7 @@ def main():
 
     updater.start_webhook(listen="0.0.0.0", port=443,
                           url_path="/bot-valevista")
-    loop(updater, bot)
+    bot.loop(updater)
 
 
 if __name__ == "__main__":
