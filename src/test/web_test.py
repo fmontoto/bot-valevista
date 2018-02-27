@@ -78,7 +78,7 @@ class TestPublicParser(TestCase):
                 'Oficina/Banco: BCO. CRED. E INVERSIONES\n'
                 'Estado: Pagado / Rendido')
         self.assertEqual(first_expected_str,
-                         web_result.get_events()[0].string_representation())
+                         str(web_result.get_events()[0]))
 
 
 if __name__ == '__main__':
