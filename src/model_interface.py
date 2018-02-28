@@ -1,3 +1,4 @@
+"""Interface to talk with the db models."""
 import datetime
 import logging
 
@@ -14,7 +15,7 @@ _session = None
 logger = logging.getLogger(__name__)
 
 
-def _start(in_memory: bool=False):
+def _start(in_memory: bool = False):
     global _session
     if in_memory:
         engine = create_engine('sqlite:///:memory:')
@@ -45,15 +46,15 @@ class UserDoesNotExistError(ValeVistaBotException):
 def commit_rollback(session_):
     try:
         session_.commit()
-    except Exception as e:
+    except Exception as commit_exep:
         session_.rollback()
-        logger.exception(e)
-        raise e
+        logger.exception(commit_exep)
+        raise commit_exep
 
 
 class User(object):
     @classmethod
-    def _get_user(cls, telegram_id: int, create: bool =True):
+    def _get_user(cls, telegram_id: int, create: bool = True):
         session = _session()
         user = session.query(
                 models.User).filter_by(telegram_id=telegram_id).first()
@@ -66,7 +67,7 @@ class User(object):
         return user
 
     @classmethod
-    def get_id(cls, telegram_id: int, create: bool =True):
+    def get_id(cls, telegram_id: int, create: bool = True):
         """
         :param telegram_id: telegram id of the user to get.
         :param create: If true and the telegram id does not exists,
@@ -85,6 +86,7 @@ class User(object):
 
     @classmethod
     def set_rut(cls, telegram_id, rut):
+        """Sets a rut for the user."""
         session = _session()
         user = cls._get_user(telegram_id, True)
         if user.rut == rut.rut_sin_digito:
@@ -94,6 +96,7 @@ class User(object):
 
     @classmethod
     def get_rut(cls, telegram_id):
+        """Gets the user rut."""
         user = cls._get_user(telegram_id, True)
         if user.rut:
             return Rut.build_rut_sin_digito(user.rut)
@@ -101,6 +104,7 @@ class User(object):
 
     @classmethod
     def is_subscribed(cls, telegram_id, chat_id):
+        """Whether the user with the given chat is subscribed or not."""
         session = _session()
         user_id = cls.get_id(telegram_id)
         result = session.query(models.SubscribedUsers).filter_by(
@@ -109,6 +113,7 @@ class User(object):
 
     @classmethod
     def subscribe(cls, telegram_id, chat_id):
+        """Subscribes the given user with the given chat."""
         if not User.get_rut(telegram_id):
             raise UserBadUseError(Messages.SUBSCRIBE_NO_RUT)
         if User.is_subscribed(telegram_id, chat_id):
@@ -122,11 +127,12 @@ class User(object):
 
     @classmethod
     def unsubscribe(cls, telegram_id, chat_id):
+        """Unsubscribes the user with the given id and chat."""
         user_id = cls.get_id(telegram_id, False)
         session = _session()
         result = session.query(models.SubscribedUsers).filter_by(
                 user_id=user_id, chat_id=chat_id).all()
-        if not len(result):
+        if not result:
             raise UserBadUseError(Messages.UNSUBSCRIBE_NON_SUBSCRIBED)
 
         session.delete(result[0])
@@ -134,21 +140,27 @@ class User(object):
 
     @classmethod
     def get_subscriber_not_retrieved_hours_ago(cls, hours):
+        """Subscribed users which results have not been retrieved in 'hours'.
+
+        Returns  a list of all the subscribed users which cache has not been
+        updated in the last 'hours' hours.
+        """
         session = _session()
         t_limit = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
-        already_updated_users = session.query(models.User).filter(
-                models.SubscribedUsers.user_id == models.User.id).filter(
-                models.CachedResult.user_id == models.User.id).filter(
-                models.CachedResult.retrieved > t_limit)
+        already_updated_users = session.query(models.User) \
+            .filter(models.SubscribedUsers.user_id == models.User.id) \
+            .filter(models.CachedResult.user_id == models.User.id) \
+            .filter(models.CachedResult.retrieved > t_limit)
         # All subscribed users minus the already updated
-        to_update_users = session.query(models.User).filter(
-                models.SubscribedUsers.user_id == models.User.id).filter(
-                models.User.id.notin_(
+        to_update_users = session.query(models.User) \
+            .filter(models.SubscribedUsers.user_id == models.User.id) \
+            .filter(models.User.id.notin_(
                     already_updated_users.with_entities(models.User.id)))
         return to_update_users.all()
 
     @classmethod
     def get_chat_id(cls, user_id):
+        """Gets the chat id for the user with 'user_id'."""
         session = _session()
         subscribed_user = session.query(
                 models.SubscribedUsers).filter(user_id == user_id).first()
@@ -158,9 +170,10 @@ class User(object):
 
 
 class Cache(object):
+    """Access to the cache db table."""
     def __init__(self,
-                 exp_time: datetime.timedelta=datetime.timedelta(
-                     hours=2)) -> None:
+                 exp_time: datetime.timedelta = datetime.timedelta(
+                         hours=2)) -> None:
         self._exp_time = exp_time
 
     def get(self, user_id, rut):
@@ -173,11 +186,12 @@ class Cache(object):
             return None
         return result[0].result
 
-    def update(self, user_id, rut: Rut, result):
+    @staticmethod
+    def update(user_id, rut: Rut, result):
         """Updates the cache with 'result'.
 
         Returns:
-            bool: Whether the cache changes or not (ie result was already
+            bool: Whether the cache changed or not (ie result was already
                 stored).
         """
         session = _session()

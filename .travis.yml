@@ -6,10 +6,12 @@ python:
 
 install:
     - "pip install -r requirements.txt"
-    - "pip install pycodestyle"
     - "pip install mypy"
+    - "pip install pycodestyle"
+    - "pip install pylint"
 
 script:
     - "mypy --ignore-missing-imports src/*\\.py"
     - "python -m pycodestyle src"
     - "python -m unittest discover -p *_test.py -v"
+    - "pylint src"

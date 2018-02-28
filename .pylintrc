@@ -1,4 +1,9 @@
-[Format]
+[MASTER]
+
+# Ignore test files.
+ignore-patterns=.*_test.py
+
+[FORMAT]
 
 # Number of spaces of indent required inside a hanging or continued line.
 indent-after-paren=8

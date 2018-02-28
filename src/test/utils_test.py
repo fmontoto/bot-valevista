@@ -47,6 +47,10 @@ class TestRutClassMethods(TestCase):
                          Rut._remove_digito_verificador_puntos('2343234-K'))
         self.assertEqual(None,
                          Rut._remove_digito_verificador_puntos('2343234k'))
+        self.assertEqual('2343234',
+                         Rut._remove_digito_verificador_puntos('2.343.234-K'))
+        self.assertEqual(None,
+                         Rut._remove_digito_verificador_puntos('2:343.234-K'))
 
     def test_bot_representation(self):
         self.assertEqual('12.444.333-4',
