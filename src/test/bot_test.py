@@ -132,7 +132,7 @@ class TestBot(TestCase):
 
 
 class TestFunctionalBot(TestCase):
-    _EXPECTED_ON_SUCCESS = (
+    _EXPECTED_PAGADO_RENDIDO = (
             "Fecha de Pago: 28/10/2016\n"
             "Medio de Pago: Abono en Cuenta Corriente de Otros Bancos\n"
             "Oficina/Banco: BCO. CRED. E INVERSIONES\n"
@@ -147,6 +147,12 @@ class TestFunctionalBot(TestCase):
             "Medio de Pago: Abono en Cuenta Corriente de Otros Bancos\n"
             "Oficina/Banco: BCO. CRED. E INVERSIONES\n"
             "Estado: Pagado / Rendido"
+    )
+    _EXPECTED_PAGADO_RENDICION = (
+            "Fecha de Pago: 31/01/2018\n"
+            "Medio de Pago: Vale Vista Virtual\n"
+            "Oficina/Banco: OF. LOS HEROES OP.\n"
+            "Estado: Pagado / En Rendicion"
     )
 
     def setUp(self):
@@ -253,7 +259,7 @@ class TestFunctionalBot(TestCase):
 
     # Test getting results.
     def testGetStoredRut(self):
-        expected = self._EXPECTED_ON_SUCCESS
+        expected = self._EXPECTED_PAGADO_RENDIDO
         self.setRut()
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
@@ -274,7 +280,7 @@ class TestFunctionalBot(TestCase):
         self.assertEqual(Messages.NO_PAGOS, self.stored)
 
     def testSimpleQueryTheBankAndReply(self):
-        expected = self._EXPECTED_ON_SUCCESS
+        expected = self._EXPECTED_PAGADO_RENDIDO
         # This enrolls the user.
         self.setRut()
         self.retriever.setPath(
@@ -284,8 +290,20 @@ class TestFunctionalBot(TestCase):
                                           ValeVistaBot.ReplyWhen.ALWAYS)
         self.assertEqual(expected, self.stored)
 
+    def testQueryTheBankAndReplyUseful(self):
+        expected = self._EXPECTED_PAGADO_RENDICION
+        self.stored = None
+        # This enrolls the user.
+        self.setRut()
+        self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendicion.html'))
+        self.bot.query_the_bank_and_reply(
+                self.user1_telegram_id, self.rut, self.store_received_string,
+                ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        self.assertEqual(expected, self.stored)
+
     def testQueryTheBankAndReply(self):
-        expected = self._EXPECTED_ON_SUCCESS
+        self.stored = None
         # This enrolls the user.
         self.setRut()
         self.retriever.setPath(
@@ -293,7 +311,7 @@ class TestFunctionalBot(TestCase):
         self.bot.query_the_bank_and_reply(
                 self.user1_telegram_id, self.rut, self.store_received_string,
                 ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
-        self.assertEqual(expected, self.stored)
+        self.assertIsNone(self.stored)
 
     def testQueryTheBankAndReplyCache(self):
         # This enrolls the user.
@@ -303,7 +321,7 @@ class TestFunctionalBot(TestCase):
         self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
                                           self.store_received_string,
                                           ValeVistaBot.ReplyWhen.ALWAYS)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
         self.stored = None
         self.bot.query_the_bank_and_reply(
                 self.user1_telegram_id, self.rut, self.store_received_string,
@@ -312,7 +330,7 @@ class TestFunctionalBot(TestCase):
         self.bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
                                           self.store_received_string,
                                           ValeVistaBot.ReplyWhen.ALWAYS)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
 
     def testQueryTheBankAndReplyErrorSecondQueryAlways(self):
         # Inmediate time of expiration for cache.
@@ -325,7 +343,7 @@ class TestFunctionalBot(TestCase):
         bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
                                      self.store_received_string,
                                      ValeVistaBot.ReplyWhen.ALWAYS)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('cliente.html'))
         bot.query_the_bank_and_reply(
@@ -344,7 +362,7 @@ class TestFunctionalBot(TestCase):
         bot.query_the_bank_and_reply(self.user1_telegram_id, self.rut,
                                      self.store_received_string,
                                      ValeVistaBot.ReplyWhen.ALWAYS)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
         self.stored = None
         self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('cliente.html'))
@@ -403,7 +421,7 @@ class TestFunctionalBot(TestCase):
         update = self.simpleMessage(str(self.rut),
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
 
     def testRutMessage(self):
         # This enrolls the user.
@@ -412,7 +430,7 @@ class TestFunctionalBot(TestCase):
         update = self.simpleMessage(str(self.rut),
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDIDO, self.stored)
 
     def testRutMessageError(self):
         # This enrolls the user.
@@ -445,6 +463,24 @@ class TestFunctionalBot(TestCase):
     def testStep(self):
         self.setRut()
         self.retriever.setPath(
+                web_test.TestFilesBasePath().joinpath('pagado_rendicion.html'))
+        update = self.simpleCommand('subscribe',
+                                    cb_reply=self.store_received_string)
+        self.dispatcher.process_update(update)  # Process the subscription.
+
+        mocked_updater = MagicMock(telegram.ext.Updater)
+        mocked_updater.bot = MagicMock(telegram.Bot)
+        mocked_updater.bot.sendMessage = self.sendMessageMock
+        self.stored = None
+        self.bot.step(mocked_updater)
+        self.assertEqual(self._EXPECTED_PAGADO_RENDICION, self.stored)
+        self.stored = None
+        self.bot.step(mocked_updater)
+        self.assertEqual(None, self.stored)
+
+    def testStepNoUpdate(self):
+        self.setRut()
+        self.retriever.setPath(
                 web_test.TestFilesBasePath().joinpath('pagado_rendido.html'))
         update = self.simpleCommand('subscribe',
                                     cb_reply=self.store_received_string)
@@ -455,7 +491,7 @@ class TestFunctionalBot(TestCase):
         mocked_updater.bot.sendMessage = self.sendMessageMock
         self.stored = None
         self.bot.step(mocked_updater)
-        self.assertEqual(self._EXPECTED_ON_SUCCESS, self.stored)
+        self.assertIsNone(self.stored)
         self.stored = None
         self.bot.step(mocked_updater)
         self.assertEqual(None, self.stored)

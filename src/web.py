@@ -29,11 +29,11 @@ class Event(object):
     def __init__(self, fecha: str, medio_pago: str, oficina: str,
                  estado: str) -> None:
         self._str_repr = None
-        self._ordered_dict = OrderedDict([
+        self._ordered_dict: Dict[str, str] = OrderedDict([
                 ('Fecha de Pago', fecha),
                 ('Medio de Pago', medio_pago),
                 ('Oficina/Banco', oficina),
-                ('Estado', estado)])  # type: Dict[str, str]
+                ('Estado', estado)])
 
     def _string_representation(self):
         if self._str_repr is None:
@@ -42,6 +42,11 @@ class Event(object):
                 acc.append("%s: %s\n" % (key.strip(), val.strip()))
             self._str_repr = "".join(acc).rstrip("\n")
         return self._str_repr
+
+    @classmethod
+    def is_useful(cls):
+        """Whether this event is useful for the user or not."""
+        raise NotImplementedError()
 
     def __str__(self):
         return self._string_representation()
@@ -114,7 +119,7 @@ class TypeOfWebResult(Enum):
 
 
 class WebResult(object):
-
+    """Parsed response from the web page."""
     def __init__(
             self, type_result: TypeOfWebResult, events: List[Event]) -> None:
         self._type_result = type_result
@@ -140,7 +145,7 @@ class WebResult(object):
         raise ValueError('Unknown type of result')
 
 
-class WebRetriever(object):
+class WebRetriever(object):  # pylint: disable=too-few-public-methods
     """Base class for webpage retrievers."""
     def retrieve(self, rut: Rut):
         """Each instance should implement this function.
@@ -150,6 +155,7 @@ class WebRetriever(object):
         raise NotImplementedError()
 
 
+# pylint: disable=too-few-public-methods
 class WebPageDownloader(WebRetriever):
     """Class to download a webpage."""
     URL = ("http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?"
@@ -304,6 +310,12 @@ class Web(object):
     def _did_cache_change(self):
         return self._cache_changed
 
+    def _any_useful_event(self):
+        for event in self.web_result.get_events():
+            if event.is_useful():
+                return True
+        return False
+
     def is_useful_info_for_user(self) -> bool:
         """Whether the data in this result is useful for the user or not."""
         web_result_type = self.web_result.get_type()
@@ -319,5 +331,7 @@ class Web(object):
         # If no results, not useful.
         if not self.web_result.get_events():
             return False
-        # TODO(fmontoto): Check if there is useful new data in the result.
+        # If there is no useful event, not useful.
+        if not self._any_useful_event():
+            return False
         return True

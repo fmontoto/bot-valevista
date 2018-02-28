@@ -258,12 +258,13 @@ class ValeVistaBot(object):
         If useful new data is available, send a message to the user.
         """
         users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
-        logger.debug("To update queue length: %s", len(users_to_update))
         if not users_to_update:
             return
 
         user_to_update = users_to_update[random.randint(
                 0, len(users_to_update) - 1)]
+        logger.debug("To update queue length: %s. Updating: user_id=%s",
+                     len(users_to_update), user_to_update.id)
         rut = Rut.build_rut_sin_digito(user_to_update.rut)
         user_chat_id = User.get_chat_id(user_to_update.id)
         try:
