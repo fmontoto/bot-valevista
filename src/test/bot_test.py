@@ -7,7 +7,8 @@ import telegram
 import queue
 from concurrent.futures import ThreadPoolExecutor
 
-from src.test.model_interface_test import mock_model_interface, User
+from src.test.model_interface_test import User
+from src.model_interface import DbConnection
 from src.bot import ValeVistaBot
 from src import bot
 from src.utils import is_a_proper_time, Rut
@@ -50,8 +51,8 @@ def simpleMessage(bot, name: str, user: telegram.User, chat: telegram.Chat,
 
 class TestBot(TestCase):
     def setUp(self):
-        model_interface._start(True)
-        self.bot = ValeVistaBot()
+        self._db_connection = DbConnection(in_memory=True)
+        self.bot = ValeVistaBot(self._db_connection)
         self.queue = queue.Queue()
         self.dispatcher = MockDispatcher(self.bot, self.queue)
         self.user1 = telegram.User(id=get_id(), first_name='john',
@@ -156,9 +157,9 @@ class TestFunctionalBot(TestCase):
     )
 
     def setUp(self):
-        model_interface._start(True)
+        self._db_connection = DbConnection(in_memory=True)
         self.retriever = web_test.WebPageFromFileRetriever()
-        self.bot = ValeVistaBot(self.retriever)
+        self.bot = ValeVistaBot(self._db_connection, self.retriever)
         self.queue = queue.Queue()
         self.dispatcher = MockDispatcher(self.bot, self.queue)
         self.user1_telegram_id = get_id()
@@ -334,8 +335,9 @@ class TestFunctionalBot(TestCase):
 
     def testQueryTheBankAndReplyErrorSecondQueryAlways(self):
         # Inmediate time of expiration for cache.
-        cache = model_interface.Cache(datetime.timedelta(0))
-        bot = ValeVistaBot(self.retriever, cache)
+        cache = model_interface.Cache(
+                self._db_connection, datetime.timedelta(0))
+        bot = ValeVistaBot(self._db_connection, self.retriever, cache)
         # This enrolls the user.
         self.setRut()
         self.retriever.setPath(
@@ -353,8 +355,9 @@ class TestFunctionalBot(TestCase):
 
     def testQueryTheBankAndReplyErrorSecondQueryIfUseful(self):
         # Inmediate time of expiration for cache.
-        cache = model_interface.Cache(datetime.timedelta(0))
-        bot = ValeVistaBot(self.retriever, cache)
+        cache = model_interface.Cache(
+                self._db_connection, datetime.timedelta(0))
+        bot = ValeVistaBot(self._db_connection, self.retriever, cache)
         # This enrolls the user.
         self.setRut()
         self.retriever.setPath(
@@ -373,8 +376,9 @@ class TestFunctionalBot(TestCase):
 
     def testQueryTheBankAndReplyTwoErrorSecondQueryIfUseful(self):
         # Inmediate time of expiration for cache.
-        cache = model_interface.Cache(datetime.timedelta(0))
-        bot = ValeVistaBot(self.retriever, cache)
+        cache = model_interface.Cache(
+                self._db_connection, datetime.timedelta(0))
+        bot = ValeVistaBot(self._db_connection, self.retriever, cache)
         # This enrolls the user.
         self.setRut()
         self.retriever.setPath(
@@ -453,8 +457,9 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
         self.stored = None
 
-        self.assertFalse(User.get_subscriber_not_retrieved_hours_ago(1))
-        subscribers = User.get_subscriber_not_retrieved_hours_ago(0)
+        self.assertFalse(
+                User(self._db_connection).get_subscribers_to_update(1))
+        subscribers = User(self._db_connection).get_subscribers_to_update(0)
         self.assertEqual(1, len(subscribers))
 
     def sendMessageMock(self, chat_id, msg):
@@ -503,8 +508,8 @@ class TestFunctionalBot(TestCase):
         update = self.simpleCommand('subscribe',
                                     cb_reply=self.store_received_string)
         self.dispatcher.process_update(update)  # Process the subscription.
-        self.assertTrue(
-                User.is_subscribed(self.user1_telegram_id, self.chat_id))
+        self.assertTrue(User(self._db_connection).is_subscribed(
+                self.user1_telegram_id, self.chat_id))
 
         mocked_updater = MagicMock(telegram.ext.Updater)
         mocked_updater.bot = MagicMock(telegram.Bot)
@@ -516,8 +521,8 @@ class TestFunctionalBot(TestCase):
 
         self.stored = None
         self.bot.step(mocked_updater)
-        self.assertFalse(
-                User.is_subscribed(self.user1_telegram_id, self.chat_id))
+        self.assertFalse(User(self._db_connection).is_subscribed(
+                self.user1_telegram_id, self.chat_id))
         self.assertEqual(None, self.stored)
 
 

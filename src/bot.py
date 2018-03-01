@@ -21,7 +21,7 @@ import telegram
 
 
 from src.messages import Messages
-from src.model_interface import User, _start
+from src.model_interface import User, DbConnection
 from src.model_interface import UserBadUseError, UserDoesNotExistError
 from src import model_interface
 from src.utils import Rut
@@ -66,14 +66,16 @@ class ValeVistaBot(object):
     username = "valevistabot"
 
     # Arguments are dependency injection for test purposes.
-    def __init__(self, web_retriever: WebRetriever = None,
+    def __init__(self, db_connection: DbConnection,
+                 web_retriever: WebRetriever = None,
                  cache: model_interface.Cache = None) -> None:
         if web_retriever is None:
             self._web_retriever = web.WebPageDownloader()  # type: WebRetriever
         else:
             self._web_retriever = web_retriever
-        self._cache = cache or model_interface.Cache()
+        self._cache = cache or model_interface.Cache(db_connection)
         self._running = True
+        self._db_connection = db_connection
 
     # Command handlers.
     @staticmethod
@@ -95,7 +97,7 @@ class ValeVistaBot(object):
     def get_rut(self, unused_bot, update: telegram.Update):
         """Query info for a previously set rut."""
         telegram_id = update.message.from_user.id
-        rut = User.get_rut(telegram_id)
+        rut = User(self._db_connection).get_rut(telegram_id)
         if rut:
             logger.debug('USR[%s]; GET_RUT[%s]', telegram_id, rut)
             self.query_the_bank_and_reply(telegram_id, rut,
@@ -105,8 +107,7 @@ class ValeVistaBot(object):
         logger.debug('USR[%s]; GET_NO_RUT', telegram_id)
         update.message.reply_text(Messages.NO_RUT_MSG)
 
-    @staticmethod
-    def set_rut(unused_bot, update: telegram.Update):
+    def set_rut(self, unused_bot, update: telegram.Update):
         """Set a rut to easily query it in the future."""
         spl = update.message.text.split(' ')
         if len(spl) < 2:
@@ -121,13 +122,12 @@ class ValeVistaBot(object):
             update.message.reply_text(Messages.SET_INVALID_RUT)
             return
 
-        User.set_rut(update.message.from_user.id, rut)
+        User(self._db_connection).set_rut(update.message.from_user.id, rut)
 
         logger.debug("USR[%s]; SET_RUT[%s]", update.message.from_user.id, rut)
         update.message.reply_text(Messages.SET_RUT % rut)
 
-    @staticmethod
-    def subscribe(unused_bot, update: telegram.Update):
+    def subscribe(self, unused_bot, update: telegram.Update):
         """Subscribe and get updates on valevista changes for your rut."""
         logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
         chat_type = update.message.chat.type
@@ -137,20 +137,20 @@ class ValeVistaBot(object):
             update.message.reply_text(Messages.FROM_NON_PRIVATE_CHAT)
             return
         try:
-            User.subscribe(update.message.from_user.id, update.message.chat.id)
+            User(self._db_connection).subscribe(
+                    update.message.from_user.id, update.message.chat.id)
         except UserBadUseError as bad_user_exep:
             logger.warning(bad_user_exep.public_message)
             update.message.reply_text(bad_user_exep.public_message)
         else:
             update.message.reply_text(Messages.SUBSCRIBED)
 
-    @staticmethod
-    def unsubscribe(unused_bot, update: telegram.Update):
+    def unsubscribe(self, unused_bot, update: telegram.Update):
         """Stop getting updates."""
         logger.debug("USR:[%s]; UNSUBSC", update.message.from_user.id)
         try:
-            User.unsubscribe(update.message.from_user.id,
-                             update.message.chat.id)
+            User(self._db_connection).unsubscribe(update.message.from_user.id,
+                                                  update.message.chat.id)
         except UserBadUseError as bad_user_exep:
             logger.warning(bad_user_exep.public_message)
             update.message.reply_text(bad_user_exep.public_message)
@@ -208,8 +208,8 @@ class ValeVistaBot(object):
         retrieved.
         """
         try:
-            web_result = Web(rut, telegram_id, self._web_retriever,
-                             self._cache)
+            web_result = Web(self._db_connection, rut, telegram_id,
+                             self._cache, self._web_retriever)
             response = web_result.get_results()
         # Expected exception.
         except ParsingException as parsing_exep:
@@ -257,7 +257,8 @@ class ValeVistaBot(object):
 
         If useful new data is available, send a message to the user.
         """
-        users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
+        user_conn = User(self._db_connection)
+        users_to_update = user_conn.get_subscribers_to_update(hours)
         if not users_to_update:
             return
 
@@ -266,7 +267,7 @@ class ValeVistaBot(object):
         logger.debug("To update queue length: %s. Updating: user_id=%s",
                      len(users_to_update), user_to_update.id)
         rut = Rut.build_rut_sin_digito(user_to_update.rut)
-        user_chat_id = User.get_chat_id(user_to_update.id)
+        user_chat_id = user_conn.get_chat_id(user_to_update.id)
         try:
             self.query_the_bank_and_reply(
                     user_to_update.telegram_id, rut,
@@ -275,7 +276,7 @@ class ValeVistaBot(object):
         except telegram.error.Unauthorized:
             logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
                          user_to_update.telegram_id)
-            User.unsubscribe(user_to_update.telegram_id, user_chat_id)
+            user_conn.unsubscribe(user_to_update.telegram_id, user_chat_id)
 
     def loop(self, updater):
         """Background loop to check for updates."""
@@ -293,10 +294,8 @@ class ValeVistaBot(object):
 
 def main():
     """Entry point."""
-    # Start the db
-    _start()
 
-    bot = ValeVistaBot()
+    bot = ValeVistaBot(DbConnection())
 
     stop_signals = (SIGINT, SIGTERM, SIGABRT)
     for sig in stop_signals:

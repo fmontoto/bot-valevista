@@ -10,7 +10,7 @@ import requests
 import bs4
 
 from src.messages import Messages
-from src.model_interface import Cache, User
+from src.model_interface import Cache, DbConnection, User
 from src.utils import Rut
 
 
@@ -267,15 +267,16 @@ class Parser(object):
 
 class Web(object):
     """Class that queries and represents a web response from the bank."""
-    def __init__(self, rut: Rut, telegram_user_id: int,
-                 web_retriever: WebRetriever = WebPageDownloader(),
-                 cache: Cache = Cache()) -> None:
+    def __init__(self, db_connection: DbConnection, rut: Rut,
+                 telegram_user_id: int, cache: Cache,
+                 web_retriever: WebRetriever = WebPageDownloader()) -> None:
         self.rut = rut
+        self._db_connection = db_connection
         self._retrieve(telegram_user_id, web_retriever, cache)
 
     def _retrieve(self, telegram_user_id: int, web_retriever: WebRetriever,
                   cache: Cache):
-        user_id = User.get_id(telegram_user_id)
+        user_id = User(self._db_connection).get_id(telegram_user_id)
         cached_results = cache.get(user_id, self.rut)
         self._retrieved_from_cache = cached_results is not None
         self._cache_changed = False
