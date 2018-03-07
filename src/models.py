@@ -35,9 +35,7 @@ class CachedResult(Base):  # type: ignore
     rut = Column(String(length=9))
     retrieved = Column(DateTime(timezone=True), server_default=func.now(),
                        onupdate=func.now())
-    # TODO(fmontoto): Increase this limit to at least 500, we already have
-    # results with 240.
-    result = Column(String(length=250))
+    result = Column(String(length=500))
 
     def __repr__(self):
         return ("<CachedResult(id='%s', user_id='%s', rut='%s', "
