@@ -1,16 +1,19 @@
-import datetime
+"""DB models used by the bot."""
 from sqlalchemy.sql import func
 from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+Base = declarative_base()  # pylint: disable=invalid-name
 
 
-class User(Base):
+# pylint: disable=too-few-public-methods
+class User(Base):  # type: ignore
+    """Bot user."""
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)  # internal id.
+    # Must be set.
     telegram_id = Column(Integer, unique=True)
+    # If set, must be the rut without digito verificador
     rut = Column(String(length=9))
 
     def __repr__(self):
@@ -18,7 +21,13 @@ class User(Base):
                 self.id, self.telegram_id)
 
 
-class CachedResult(Base):
+# pylint: disable=too-few-public-methods
+class CachedResult(Base):  # type: ignore
+    """Stores previously retrieved results.
+
+    This helps to avoid consecutive queries to the bank service as well as
+    checking if there are changes since the last time we queried the service.
+    """
     __tablename__ = 'cached_results'
 
     id = Column(Integer, primary_key=True)
@@ -26,7 +35,7 @@ class CachedResult(Base):
     rut = Column(String(length=9))
     retrieved = Column(DateTime(timezone=True), server_default=func.now(),
                        onupdate=func.now())
-    result = Column(String(length=250))
+    result = Column(String(length=500))
 
     def __repr__(self):
         return ("<CachedResult(id='%s', user_id='%s', rut='%s', "
@@ -35,7 +44,9 @@ class CachedResult(Base):
                                                     self.result)
 
 
-class SubscribedUsers(Base):
+# pylint: disable=too-few-public-methods
+class SubscribedUsers(Base):  # type: ignore
+    """List of subscribed users."""
     __tablename__ = 'subscribed_users'
 
     id = Column(Integer, primary_key=True)

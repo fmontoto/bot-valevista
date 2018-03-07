@@ -1,4 +1,7 @@
 *.pyc
-env/
+*.log
+*env/
 __pycache__/
 idea/
+*_cache/
+*.sqlite

@@ -1,0 +1,12 @@
+[MASTER]
+
+# Ignore test files.
+ignore-patterns=.*_test.py
+
+[FORMAT]
+
+# Number of spaces of indent required inside a hanging or continued line.
+indent-after-paren=8
+
+# Increase the max arguments from 5 to 6.
+max-args=6

@@ -1,164 +1,338 @@
-import codecs
-from collections import OrderedDict
-import logging
-import requests
+"""Module to retrieve and parse results from the bank web page."""
 
-from .model_interface import CachedResult, User
+from collections import OrderedDict
+import datetime
+from enum import Enum
+import logging
+from typing import Dict, List
+import requests
 
 import bs4
 
-logger = logging.getLogger(__name__)
+from src.messages import Messages
+from src.model_interface import Cache, DbConnection, User
+from src.utils import Rut
+
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class ParsingException(Exception):
+    """Error when trying to parse results."""
     def __init__(self, public_message):
         super(ParsingException, self).__init__(public_message)
         self.public_message = public_message
 
 
-class Web(object):
+class Event(object):
+    """Object that represents each event for a specific rut."""
+    def __init__(self, fecha: str, medio_pago: str, oficina: str,
+                 estado: str) -> None:
+        self._str_repr = None
+        self._ordered_dict: Dict[str, str] = OrderedDict([
+                ('Fecha de Pago', fecha),
+                ('Medio de Pago', medio_pago),
+                ('Oficina/Banco', oficina),
+                ('Estado', estado)])
+
+    def _string_representation(self):
+        if self._str_repr is None:
+            acc = []
+            for key, val in self._ordered_dict.items():
+                acc.append("%s: %s\n" % (key.strip(), val.strip()))
+            self._str_repr = "".join(acc).rstrip("\n")
+        return self._str_repr
+
+    @classmethod
+    def is_useful(cls):
+        """Whether this event is useful for the user or not."""
+        raise NotImplementedError()
+
+    def __str__(self):
+        return self._string_representation()
+
+    @staticmethod
+    def build_event(fecha: str, medio_pago: str, oficina: str, estado: str):
+        """Builds an event from the given parameters."""
+        estado_lower = estado.lower()
+        if 'pagado' in estado_lower and 'rendido' in estado_lower:
+            return EventPagadoRendido(fecha, medio_pago, oficina, estado)
+        if 'vigente' in estado_lower and 'rendido' in estado_lower:
+            return EventVigenteRendido(fecha, medio_pago, oficina, estado)
+        if ('vigente' in estado_lower and ('rendición' in estado_lower or
+                                           'rendicion' in estado_lower)):
+            return EventVigenteEnRendicion(fecha, medio_pago, oficina, estado)
+        logger.error('Unable to parse event:%s', estado)
+        return EventUnknown(fecha, medio_pago, oficina, estado)
+
+    @staticmethod
+    def build_event_from_cache_entry(entry: str):
+        """Builds an event from a single cache entry."""
+        lines = entry.split("\n")
+        if len(lines) != 4:
+            logger.error('4 lines expected, got %d:%s', len(lines), entry)
+            raise ParsingException(Messages.PARSER_ERROR)
+        fecha = lines[0].lstrip('Fecha de Pago: ')
+        medio_pago = lines[1].lstrip('Medio de Pago: ')
+        oficina = lines[2].lstrip('Oficina/Banco: ')
+        estado = lines[3].lstrip('Estado: ')
+        return Event.build_event(fecha, medio_pago, oficina, estado)
+
+
+class EventVigenteRendido(Event):
+    """ Listo para retirar."""
+
+    @classmethod
+    def is_useful(cls):
+        return True
+
+
+class EventVigenteEnRendicion(Event):
+    """Va a estar disponible para cobrar en la fecha especificada."""
+
+    @classmethod
+    def is_useful(cls):
+        return True
+
+
+class EventPagadoRendido(Event):
+    """Ya fue cobrado."""
+
+    @classmethod
+    def is_useful(cls):
+        return False
+
+
+class EventUnknown(Event):
+    """Evento desconocido."""
+
+    @classmethod
+    def is_useful(cls):
+        return True  # If we don't know about it, may be useful.
+
+
+class TypeOfWebResult(Enum):
+    """Types of results."""
+    NO_ERROR = 1
+    CLIENTE = 2
+    INTENTE_NUEVAMENTE = 3
+
+
+class WebResult(object):
+    """Parsed response from the web page."""
+    def __init__(
+            self, type_result: TypeOfWebResult, events: List[Event]) -> None:
+        self._type_result = type_result
+        self._events = events  # type: List[Event]
+
+    def get_type(self):
+        """Returns the type of the result."""
+        return self._type_result
+
+    def get_events(self):
+        """Returns result's events."""
+        return self._events
+
+    def get_error(self):
+        """On error, returns a proper string to show to the user."""
+        type_result = self._type_result
+        if type_result == TypeOfWebResult.CLIENTE:
+            return Messages.CLIENTE_ERROR
+        elif type_result == TypeOfWebResult.INTENTE_NUEVAMENTE:
+            return Messages.INTENTE_NUEVAMENTE_ERROR
+        elif type_result == TypeOfWebResult.NO_ERROR:
+            return ''
+        raise ValueError('Unknown type of result')
+
+
+class WebRetriever(object):  # pylint: disable=too-few-public-methods
+    """Base class for webpage retrievers."""
+    def retrieve(self, rut: Rut):
+        """Each instance should implement this function.
+
+        Should return the retrieved web page.
+        """
+        raise NotImplementedError()
+
+
+# pylint: disable=too-few-public-methods
+class WebPageDownloader(WebRetriever):
+    """Class to download a webpage."""
     URL = ("http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?"
            "rut1=60910000&dv1=1&canal=BCW&tipo=2&BEN_DIAS=90"
            "&mediopago=99&rut2=%s&dv2=%s")
 
-    # Tipos de pagina
-    EXPECTED = 1
-    CLIENTE = 2
-    NO_PAGOS = 3
-    INTENTE_NUEVAMENTE = 4
-
-    def __init__(self, rut, digito):
-        self.rut = rut
-        self.digito = digito
-        self.raw_page = ""
-        self.results = None
-        self.url = self.URL % (self.rut, self.digito)
-
-    def get_results(self):
-        # This if is only for testing purposes, if the page was loaded
-        # do not download it.
-        if not self.raw_page:
-            self.download()
-        return self.parse()
-
-    def get_parsed_results(self, telegram_user_id):
-        """
-
-        :param telegram_user_id:
-        :return: (str, boolean) - (result, changed_from_cached)
-        """
-        user_id = User.get_id(telegram_user_id)
-        result = CachedResult.get(user_id, self.rut)
-        if result:
-            logger.info("Using cache results.")
-            return result, False
-        logger.info("Querying the bank page")
-        results = self.get_results()
-        if self.page_type != self.EXPECTED:
-            result = "".join(results)
-        else:
-            parsed_result = []
-            for r in results:
-                this_result = []
-                for k, v in r.items():
-                    this_result.append("%s: %s\n" % (k.strip(), v.strip()))
-                parsed_result.append("".join(this_result).rstrip("\n"))
-            result = "\n\n".join(parsed_result)
-
+    def retrieve(self, rut: Rut):
+        """Downloads the web page corresponding to 'rut'."""
+        url = self.URL % (rut.rut_sin_digito, rut.digito_verificador)
         try:
-            return result, CachedResult.update(user_id, self.rut, result)
-        except Exception as e:
-            logging.exception("parsed_results")
-            return result, True
-
-    def download(self):
-        try:
-            r = requests.get(self.url)
-        except requests.exceptions.RequestException as e:
+            req = requests.get(url)
+        except requests.exceptions.RequestException:
             logger.exception("Connection error")
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
-        if(r.status_code != 200):
-            logger.warn("Couldn't get the page, error %s:%s" % (r.status_code,
-                                                                r.reason))
+        if req.status_code != 200:
+            logger.warning("Couldn't get the page, error %s:%s",
+                           req.status_code, req.reason)
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
 
-        self.raw_page = r.text
+        return req.text
 
-    """ Testing purposes."""
-    def load_page(self, path):
-        with codecs.open(path, "r", encoding='utf-8', errors='ignore') as f:
-            self.raw_page = f.read()
 
-    def parse(self):
-        soup = bs4.BeautifulSoup(self.raw_page, "html.parser")
-        # TODO esto es horrible, factorizar de alguna forma brillante
+class Parser(object):
+    """Class to parse the bank web page."""
+    @classmethod
+    def _parse_date(cls, date: str) -> datetime.date:
+        """Parse a dd/mm/yyyy date into a date object."""
+        split = date.split('/')
         try:
-            self.results = self._parse_expected(soup)
-            self.page_type = self.EXPECTED
-            logger.info("Parseada [%s]", self.page_type)
-            return self.results
+            day = int(split[0].strip())
+            month = int(split[1].strip())
+            year = int(split[2].strip())
+            return datetime.date(year, month, day)
         except Exception:
-            pass
+            logger.exception('Could not parse a date: %s', date)
+            raise ParsingException(Messages.PARSER_ERROR)
 
-        try:
-            self.results = self._parse_clientes(soup)
-            self.page_type = self.CLIENTE
-            logger.info("Parseada [%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-
-        try:
-            self.results = self._parse_no_pagos(soup)
-            self.page_type = self.NO_PAGOS
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-
-        try:
-            self.results = self._parse_error_intente_nuevamente(soup)
-            self.page_type = self.INTENTE_NUEVAMENTE
-            logger.info("Parseada[%s]", self.page_type)
-            return self.results
-        except Exception as e:
-            pass
-        logger.error("Error parsing, no se pudo parsear la pagina [%s]: %s",
-                     self.url, self.raw_page)
-        raise ParsingException(("Nadie ha escrito un parser para esta pagina "
-                                "aun :( reportalo en github!"))
-
-    def _parse_expected(self, soup):
+    @classmethod
+    def _raw_page_to_events(cls, raw_page):
+        soup = bs4.BeautifulSoup(raw_page, "html.parser")
         table = soup.body.form.find_all(
                 'table')[1].find_all('tr')[5].find_all('tr')
         if table[0].td.text != '\nFecha de Pago':
-            raise ParsingException("Probablemente no es una pagina expected!")
-        resultados = []
+            logger.error('Unexpected webpage:\n%s', raw_page)
+            raise ParsingException(Messages.PARSER_ERROR)
+        events = []
         for i in range(1, len(table) - 1):
             data = table[i].find_all('td')
-            resultados.append(
-                    OrderedDict([('Fecha de Pago', data[0].text.strip('\n')),
-                                 ('Medio de Pago', data[1].text.strip('\n')),
-                                 ('Oficina/Banco', data[2].text.strip('\n')),
-                                 ('Estado', data[3].text.strip('\n'))]))
-        return resultados
+            fecha = data[0].text.strip('\n')
+            medio_pago = data[1].text.strip('\n')
+            oficina = data[2].text.strip('\n')
+            estado = data[3].text.strip('\n')
+            events.append(
+                    Event.build_event(fecha, medio_pago, oficina, estado))
+        return events
 
-    def _parse_clientes(self, soup):
-        if "Para clientes del Banco de Chile" not in self.raw_page:
-            raise ParsingException("Probablemente no es una pag de clientes")
-        return [("Eres cliente del banco?, no es posible consultar tu "
-                 "informacion por la interfaz publica.")]
+    @classmethod
+    def _events_to_cache_string(cls, events: List[Event]):
+        events_as_str = [str(x) for x in events]
+        return "\n\n".join(events_as_str)
 
-    def _parse_no_pagos(self, soup):
-        if "Actualmente no registra pagos a su favor" not in self.raw_page:
-            raise ParsingException("Probablemente no es una pagina sin pagos")
-        return [("Actualmente no registras pagos a tu favor.")]
+    @classmethod
+    def cache_string_to_web_result(cls, cache_string: str) -> WebResult:
+        """Builds a web results form the string stored in the cache."""
+        if Messages.CLIENTE_ERROR in cache_string:
+            return WebResult(TypeOfWebResult.CLIENTE, [])
+        if Messages.INTENTE_NUEVAMENTE_ERROR in cache_string:
+            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
+        if Messages.NO_PAGOS in cache_string:
+            return WebResult(TypeOfWebResult.NO_ERROR, [])
 
-    def _parse_error_intente_nuevamente(self, soup):
-        if "Por ahora no podemos atenderle." not in self.raw_page:
-            raise ParsingException(
-                    "Probablemente no es una de error intente nuevamente")
-        return [("La pagina del banco tiene un error y dice que intentes "
-                 "nuevamente. Intenta nuevamente en unas horas")]
+        single_cache_entries = cache_string.split("\n\n")
+        events = []  # type: List[Event]
+        for cache_entry in single_cache_entries:
+            events.append(Event.build_event_from_cache_entry(cache_entry))
+        return WebResult(TypeOfWebResult.NO_ERROR, events)
+
+    @classmethod
+    def events_to_cache_string(cls, events: List[Event]):
+        """Convert a list of events into a cache string."""
+        if not events:
+            return Messages.NO_PAGOS
+        strings = [str(e) for e in events]
+        return "\n\n".join(strings)
+
+    @classmethod
+    def parse(cls, raw_page) -> WebResult:
+        """Parses raw_page to a WebResult with the events in the page."""
+        if "Para clientes del Banco de Chile" in raw_page:
+            logger.debug('Parsed cliente.')
+            return WebResult(TypeOfWebResult.CLIENTE, [])
+        if "Por ahora no podemos atenderle." in raw_page:
+            logger.debug('Parsed pagina no disponible.')
+            return WebResult(TypeOfWebResult.INTENTE_NUEVAMENTE, [])
+        if "Actualmente no registra pagos a su favor" in raw_page:
+            logger.debug('Parsed pagina vacia.')
+            return WebResult(TypeOfWebResult.NO_ERROR, [])
+
+        try:
+            events = cls._raw_page_to_events(raw_page)
+        except Exception as exception:
+            logger.exception('While trying to parse \n%s\n', raw_page)
+            raise exception
+
+        return WebResult(TypeOfWebResult.NO_ERROR, events)
+
+
+class Web(object):
+    """Class that queries and represents a web response from the bank."""
+    def __init__(self, db_connection: DbConnection, rut: Rut,
+                 telegram_user_id: int, cache: Cache,
+                 web_retriever: WebRetriever = WebPageDownloader()) -> None:
+        self.rut = rut
+        self._db_connection = db_connection
+        self._retrieve(telegram_user_id, web_retriever, cache)
+
+    def _retrieve(self, telegram_user_id: int, web_retriever: WebRetriever,
+                  cache: Cache):
+        user_id = User(self._db_connection).get_id(telegram_user_id)
+        cached_results = cache.get(user_id, self.rut)
+        self._retrieved_from_cache = cached_results is not None
+        self._cache_changed = False
+        if cached_results:
+            self._old_cache_and_user_str = cached_results
+            self.web_result = Parser.cache_string_to_web_result(
+                    cached_results)
+            return
+
+        raw_page = web_retriever.retrieve(self.rut)
+        web_result = Parser.parse(raw_page)
+
+        # Cache even error results to prevent users to trigger
+        # too many requests to the bank.
+        if web_result.get_type() != TypeOfWebResult.NO_ERROR:
+            self._old_cache_and_user_str = web_result.get_error()
+        else:
+            self._old_cache_and_user_str = Parser.events_to_cache_string(
+                    web_result.get_events())
+        try:
+            self._cache_changed = cache.update(user_id, self.rut,
+                                               self._old_cache_and_user_str)
+        # Non fatal error.
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Unable to update the cache")
+        self.web_result = web_result
+
+    def get_results(self):
+        """Get results' string to be send to the user."""
+        return self._old_cache_and_user_str
+
+    def _did_cache_change(self):
+        return self._cache_changed
+
+    def _any_useful_event(self):
+        for event in self.web_result.get_events():
+            if event.is_useful():
+                return True
+        return False
+
+    def is_useful_info_for_user(self) -> bool:
+        """Whether the data in this result is useful for the user or not."""
+        web_result_type = self.web_result.get_type()
+        # If error, not useful.
+        if web_result_type != TypeOfWebResult.NO_ERROR:
+            return False
+        # If empty, not useful.
+        if not self._old_cache_and_user_str:
+            return False
+        # If the info was already in the cache, not useful.
+        if not self._did_cache_change():
+            return False
+        # If no results, not useful.
+        if not self.web_result.get_events():
+            return False
+        # If there is no useful event, not useful.
+        if not self._any_useful_event():
+            return False
+        return True

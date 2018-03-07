@@ -1,247 +1,316 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+""" Module implementing the main loop and the telegram API."""
+
+import enum
 import datetime
 from functools import partial
 import logging
+import logging.handlers
 from queue import Queue
 import random
 import os
 from signal import signal, SIGINT, SIGTERM, SIGABRT
+import sys
 import time
 
-import pytz
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import CommandHandler, Dispatcher, Filters, MessageHandler
+from telegram.ext import Updater
+import telegram
 
-from src.model_interface import User, _start, UserBadUseError
-from src.utils import digito_verificador, normalize_rut
-from src.web import ParsingException, Web
 
-# Enable logging
+from src.messages import Messages
+from src.model_interface import User, DbConnection
+from src.model_interface import UserBadUseError, UserDoesNotExistError
+from src import model_interface
+from src.utils import Rut
+from src import utils
+from src import web
+from src.web import ParsingException, Web, WebRetriever
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger.setLevel(logging.DEBUG)
+
+# Rotating file handler, rotates every 4 mondays.
 try:
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(format=log_format,
-                        level=logging.INFO,
-                        filename="log/bot.log",
-                        filemode="a+")
+    _LOG_HANDLER = logging.handlers.TimedRotatingFileHandler(
+            'log/bot.log', when='W0', interval=4,
+            utc=True)  # type: logging.Handler
+    _LOG_HANDLER.setLevel(logging.DEBUG)
 except FileNotFoundError:
-    print("log file not found")
-    pass
+    print('log dir not found for file logging')
+    _LOG_HANDLER = logging.StreamHandler()
+    _LOG_HANDLER.setLevel(logging.DEBUG)
 
-logger = logging.getLogger(__name__)
+_LOG_FORMAT = (
+        "%(asctime)s - %(name)s - [%(filename)s:%(lineno)d] - %(levelname)s "
+        "- %(message)s")
+_LOG_HANDLER.setFormatter(logging.Formatter(_LOG_FORMAT))
+logger.addHandler(_LOG_HANDLER)
+logger.info('Logging started')
 
+
+# Gets the bot token from the environment.
 TOKEN = os.getenv("BOT_TOKEN", None)
 
 # Minimum hours before automatically update a cached result from a user
 HOURS_TO_UPDATE = 33
 
-RUNNING = True
-SUBSCRIBED = Queue()
+SUBSCRIBED = Queue()  # type: Queue
 
 
-def start(bot, update):
-    name = (update.message.from_user.first_name or
-            update.message.from_user.username)
-    msg = ("Hola %s, soy el bot de los vale vista pagados por la UChile. "
-           "Actualmente estoy en construcción.\n"
-           "Para consultar si tienes vales vista pendientes en el banco, "
-           "enviame el rut a consultar en un mensaje, por ejemplo: "
-           "12.345.678-9 o 12.345.678 o 12345678.\n"
-           "Si quieres que recuerde tu rut para consultarlo recurrentemente, "
-           "envia: /set TU_RUT. Luego consultalo enviando /get. \n"
-           "Una vez que guardes tu rut envía /subscribe y revisaré "
-           "periódicamente la página del banco para notificarte si hay nuevos "
-           "vale vista.")
-    update.message.reply_text(msg % name)
+class ValeVistaBot(object):
+    """Class with all the telegram handlers for the bot."""
+    # Testing purposes.
+    username = "valevistabot"
 
+    # Arguments are dependency injection for test purposes.
+    def __init__(self, db_connection: DbConnection,
+                 web_retriever: WebRetriever = None,
+                 cache: model_interface.Cache = None) -> None:
+        if web_retriever is None:
+            self._web_retriever = web.WebPageDownloader()  # type: WebRetriever
+        else:
+            self._web_retriever = web_retriever
+        self._cache = cache or model_interface.Cache(db_connection)
+        self._running = True
+        self._db_connection = db_connection
 
-def help(bot, update):
-    update.message.reply_text(
-            ("Estoy para ayudarte, si no sabes como utilizar o para que sirve "
-             "este bot, envia /start.\n"
-             "Si tienes comentarios/sugerencias/quejas abre un issue en la "
-             "página de  github del proyecto: "
-             "https://https://github.com/fmontoto/bot-valevista, si estas de "
-             "suerte alguien se puede apiadar y ayudarte. De lo contrario "
-             "puedes enviar un Pull Request con la solución a tu problema "
-             "o con una nueva funcionalidad."))
+    # Command handlers.
+    @staticmethod
+    def start(unused_bot, update: telegram.Update):
+        """Prints the start message."""
+        logger.debug('USR[%s]; START', update.message.from_user.id)
+        name = (update.message.from_user.first_name or
+                update.message.from_user.username)
+        update.message.reply_text(Messages.START_MSG % name)
 
+    # Sends a help message to the user.
+    @staticmethod
+    def help(unused_bot, update: telegram.Update):
+        """Prints help message."""
+        logger.debug('USR[%s]; HELP', update.message.from_user.id)
+        update.message.reply_text(Messages.HELP_MSG)
 
-def msg(bot, update):
-    logger.info("MSG:[%s]", update.message.text)
-    is_rut = normalize_rut(update.message.text)
-    if not is_rut:
-        echo(bot, update)
-    else:
-        update_cache_and_reply(update.message.from_user.id, is_rut,
-                               update.message.reply_text, False)
-
-
-def echo(bot, update):
-    update.message.reply_text(update.message.text)
-
-
-def set_rut(bot, update):
-    spl = update.message.text.split(' ')
-    if len(spl) < 2:
-        update.message.reply_text("Especifica el rut para poder guardarlo.")
-    rut = normalize_rut(spl[1])
-
-    if not normalize_rut(spl[1]):
-        update.message.reply_text("Rut no valido.")
-        return
-    User.set_rut(update.message.from_user.id, normalize_rut(spl[1]))
-    logger.info("User %s set rut %s", update.message.from_user.id,
-                normalize_rut(spl[1]))
-    update.message.reply_text(
-        ("Rut:%s-%s guardado correctamente\n Envía /get para consultar "
-         "directamente" % (rut, digito_verificador(rut))))
-
-
-def get_by_rut(bot, update):
-    telegram_id = update.message.from_user.id
-    logger.info("Get %s", telegram_id)
-    rut_ = User.get_rut(telegram_id)
-    if rut_:
-        return update_cache_and_reply(telegram_id, rut_,
-                                      update.message.reply_text, False)
-    update.message.reply_text(
-            "Tu rut no está almacenado, envía '/set <RUT>' para almacenarlo.")
-
-
-def update_cache_and_reply(telegram_id, rut, reply_fn,
-                           reply_only_on_change_and_expected):
-    try:
-        web_parser = Web(rut, digito_verificador(rut))
-        response, changed = web_parser.get_parsed_results(telegram_id)
-    except ParsingException as e:
-        reply_fn(e.public_message)
-    except Exception as e:
-        logger.error(e)
-        reply_fn(("Ups!, un error inesperado ha ocurrido, "
-                  "lo solucionaremos a la brevedad (?)"))
-    else:
-        if not reply_only_on_change_and_expected:
-            reply_fn(response)
+    # Query the service using the stored rut.
+    def get_rut(self, unused_bot, update: telegram.Update):
+        """Query info for a previously set rut."""
+        telegram_id = update.message.from_user.id
+        rut = User(self._db_connection).get_rut(telegram_id)
+        if rut:
+            logger.debug('USR[%s]; GET_RUT[%s]', telegram_id, rut)
+            self.query_the_bank_and_reply(telegram_id, rut,
+                                          update.message.reply_text,
+                                          self.ReplyWhen.ALWAYS)
             return
-        if web_parser.page_type == web_parser.EXPECTED and changed:
+        logger.debug('USR[%s]; GET_NO_RUT', telegram_id)
+        update.message.reply_text(Messages.NO_RUT_MSG)
+
+    def set_rut(self, unused_bot, update: telegram.Update):
+        """Set a rut to easily query it in the future."""
+        spl = update.message.text.split(' ')
+        if len(spl) < 2:
+            logger.debug('USR[%s]; EMPTY_RUT', update.message.from_user.id)
+            update.message.reply_text(Messages.SET_EMPTY_RUT)
+            return
+
+        rut = Rut.build_rut(spl[1])
+
+        if rut is None:
+            logger.debug('USR[%s]; INVALID_RUT', update.message.from_user.id)
+            update.message.reply_text(Messages.SET_INVALID_RUT)
+            return
+
+        User(self._db_connection).set_rut(update.message.from_user.id, rut)
+
+        logger.debug("USR[%s]; SET_RUT[%s]", update.message.from_user.id, rut)
+        update.message.reply_text(Messages.SET_RUT % rut)
+
+    def subscribe(self, unused_bot, update: telegram.Update):
+        """Subscribe and get updates on valevista changes for your rut."""
+        logger.debug("USR:[%s]; SUBSC", update.message.from_user.id)
+        chat_type = update.message.chat.type
+        if chat_type != 'private':
+            logger.debug('USR[%s]; FROM NON PRIVATE CHAT[%s]',
+                         update.message.from_user.id, chat_type)
+            update.message.reply_text(Messages.FROM_NON_PRIVATE_CHAT)
+            return
+        try:
+            User(self._db_connection).subscribe(
+                    update.message.from_user.id, update.message.chat.id)
+        except UserBadUseError as bad_user_exep:
+            logger.warning(bad_user_exep.public_message)
+            update.message.reply_text(bad_user_exep.public_message)
+        else:
+            update.message.reply_text(Messages.SUBSCRIBED)
+
+    def unsubscribe(self, unused_bot, update: telegram.Update):
+        """Stop getting updates."""
+        logger.debug("USR:[%s]; UNSUBSC", update.message.from_user.id)
+        try:
+            User(self._db_connection).unsubscribe(update.message.from_user.id,
+                                                  update.message.chat.id)
+        except UserBadUseError as bad_user_exep:
+            logger.warning(bad_user_exep.public_message)
+            update.message.reply_text(bad_user_exep.public_message)
+        except UserDoesNotExistError as user_exep:
+            logger.warning(user_exep.public_message)
+            update.message.reply_text(Messages.UNSUBSCRIBE_NON_SUBSCRIBED)
+        else:
+            logger.info("User %s unsubscribed", update.message.from_user.id)
+            update.message.reply_text(Messages.UNSUBSCRIBED)
+
+    @staticmethod
+    def debug(bot, update: telegram.Update):
+        """Telegram framework debug handler."""
+        logger.info("Debug: %s, %s", bot, update)
+
+    @staticmethod
+    def error(unused_bot, update: telegram.Update, error):
+        """Telegram framework error handler."""
+        logger.warning("Update %s caused error: %s", update, error)
+
+    # Non command messages
+    def msg(self, bot, update: telegram.Update):
+        """Handler when a message arrives."""
+        # Log every msg received.
+        logger.debug("USR:[%s]; MSG:[%s]", update.message.from_user.id,
+                     update.message.text)
+        rut = Rut.build_rut(update.message.text)
+        if rut:
+            self.query_the_bank_and_reply(update.message.from_user.id, rut,
+                                          update.message.reply_text,
+                                          self.ReplyWhen.ALWAYS)
+        elif Rut.looks_like_rut(update.message.text):
+            update.message.reply_text(Messages.LOOKS_LIKE_RUT)
+        else:
+            self.echo(bot, update)
+
+    # Non telegram handlers.
+    @staticmethod
+    def echo(unused_bot, update):
+        """Replies with the message received."""
+        update.message.reply_text(update.message.text)
+
+    class ReplyWhen(enum.Enum):
+        """When to send a message to the user."""
+        ALWAYS = 1  # Send a message even if not useful data is found.
+        IS_USEFUL_FOR_USER = 2  # Only send a message if there is useful data.
+
+    def query_the_bank_and_reply(self, telegram_id: int, rut: Rut, reply_fn,
+                                 reply_when: ReplyWhen):
+        """Query the bank for updates, and send a message to the user.
+
+        If reply_when is set to always, send a message to the user even if
+        there are no changes from the last time we queried. Otherwise will
+        send a message to the user only if new and useful information was
+        retrieved.
+        """
+        try:
+            web_result = Web(self._db_connection, rut, telegram_id,
+                             self._cache, self._web_retriever)
+            response = web_result.get_results()
+        # Expected exception.
+        except ParsingException as parsing_exep:
+            if reply_when == self.ReplyWhen.ALWAYS:
+                reply_fn(parsing_exep.public_message)
+            return
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Error:")
+            if reply_when == self.ReplyWhen.ALWAYS:
+                reply_fn(Messages.INTERNAL_ERROR)
+            return
+
+        if reply_when == self.ReplyWhen.ALWAYS:
             reply_fn(response)
+        elif reply_when == self.ReplyWhen.IS_USEFUL_FOR_USER:
+            if web_result.is_useful_info_for_user():
+                logger.debug('USR[%s]; Useful[%s]', telegram_id, response)
+                reply_fn(response)
+        else:
+            logger.error('Not handled enum: %s', reply_when)
 
+    # Bot helping functions.
+    def add_handlers(self, dispatcher: Dispatcher) -> None:
+        """Adds all ValeVistaBot handlers to 'dispatcher'."""
+        dispatcher.add_handler(CommandHandler("start", self.start))
+        dispatcher.add_handler(CommandHandler("set", self.set_rut))
+        dispatcher.add_handler(CommandHandler("get", self.get_rut))
+        dispatcher.add_handler(CommandHandler("debug", self.debug))
+        dispatcher.add_handler(CommandHandler("help", self.help))
+        dispatcher.add_handler(CommandHandler("subscribe", self.subscribe))
+        dispatcher.add_handler(CommandHandler("unsubscribe", self.unsubscribe))
+        dispatcher.add_handler(MessageHandler(Filters.text, self.msg))
+        dispatcher.add_error_handler(self.error)
 
-def subscribe(bot, update):
-    try:
-        User.subscribe(update.message.from_user.id, update.message.chat.id)
-    except UserBadUseError as e:
-        logger.warning(e.public_message)
-        update.message.reply_text(e.public_message)
-    else:
-        logger.info("User %s subscribed", update.message.from_user.id)
-        update.message.reply_text(
-            ("Estas subscrito, si hay cambios con respecto al último "
-             "resultado que miraste aquí, te enviaré un mensaje. Estaré "
-             "revisando la página del banco cada uno o dos días. Si la "
-             "desesperación es mucha, recuerda que puedes preguntarme con "
-             "/get \n Para eliminar tu subscripción, envía el comando "
-             "/unsubscribe."))
+    def signal_handler(self, unused_signum, unused_frame):
+        """Gracefully stops the bot on a received signal."""
+        if self._running:
+            self._running = False
+        else:
+            logger.error("Exiting now!")
+            sys.exit(1)
 
+    def step(self, updater, hours=HOURS_TO_UPDATE):
+        """Checks the bank for subscribed users.
 
-def unsubscribe(bot, update):
-    try:
-        User.unsubscribe(update.message.from_user.id, update.message.chat.id)
-    except UserBadUseError as e:
-        logger.warning(e.public_message)
-        update.message.reply_text(e.public_message)
-    else:
-        logger.info("User %s unsubscribed", update.message.from_user.id)
-        update.message.reply_text(("Ya no estás subscrito, para volver a "
-                                   "estarlo, envía /subscribe"))
+        If useful new data is available, send a message to the user.
+        """
+        user_conn = User(self._db_connection)
+        users_to_update = user_conn.get_subscribers_to_update(hours)
+        if not users_to_update:
+            return
 
-
-def debug(bot, update):
-    logger.info("Debug: %s, %s" % (bot, update))
-
-
-def error(bot, update, error):
-    logger.warn("Update %s caused error %s" % (update, error))
-
-
-def signal_handler(signum, frame):
-    global RUNNING
-    if RUNNING:
-        RUNNING = False
-    else:
-        logger.warn("Exiting now!")
-        os.exit(1)
-
-
-def is_a_proper_time(now):
-    """
-
-    :param now: utc time to check if is proper
-    :return:
-    """
-    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
-        now = now.replace(tzinfo=pytz.utc)
-
-    cl_tz = pytz.timezone('America/Santiago')
-    normalized_now = now.astimezone(cl_tz)
-
-    # If saturday or sunday
-    if normalized_now.weekday() > 4:
-        return False
-
-    # If between 00:00 and 9:59.
-    if normalized_now.hour < 10:
-        return False
-
-    return True
-
-
-def step(updater, hours=HOURS_TO_UPDATE):
-    users_to_update = User.get_subscriber_not_retrieved_hours_ago(hours)
-    logger.info("To update queue length: %s", len(users_to_update))
-    if len(users_to_update) > 0:
         user_to_update = users_to_update[random.randint(
                 0, len(users_to_update) - 1)]
-        update_cache_and_reply(
-                user_to_update.telegram_id, user_to_update.rut,
-                partial(updater.bot.sendMessage,
-                        User.get_chat_id(user_to_update.id)), True)
+        logger.debug("To update queue length: %s. Updating: user_id=%s",
+                     len(users_to_update), user_to_update.id)
+        rut = Rut.build_rut_sin_digito(user_to_update.rut)
+        user_chat_id = user_conn.get_chat_id(user_to_update.id)
+        try:
+            self.query_the_bank_and_reply(
+                    user_to_update.telegram_id, rut,
+                    partial(updater.bot.sendMessage, user_chat_id),
+                    ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
+        except telegram.error.Unauthorized:
+            logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
+                         user_to_update.telegram_id)
+            user_conn.unsubscribe(user_to_update.telegram_id, user_chat_id)
 
+    def loop(self, updater):
+        """Background loop to check for updates."""
 
-def loop(updater):
-    stop_signals = (SIGINT, SIGTERM, SIGABRT)
-    for sig in stop_signals:
-        signal(sig, signal_handler)
-
-    while RUNNING:
-        if is_a_proper_time(datetime.datetime.utcnow()):
-            step(updater)
-        time.sleep(random.randint(5 * 60, 25 * 60))  # Between 5 and 25 minutes
-    updater.stop()
+        while self._running:
+            try:
+                if utils.is_a_proper_time(datetime.datetime.utcnow()):
+                    self.step(updater)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("step failed")
+            # Between 5 and 25 minutes
+            time.sleep(random.randint(5 * 60, 25 * 60))
+        updater.stop()
 
 
 def main():
-    _start()
+    """Entry point."""
+
+    bot = ValeVistaBot(DbConnection())
+
+    stop_signals = (SIGINT, SIGTERM, SIGABRT)
+    for sig in stop_signals:
+        signal(sig, bot.signal_handler)
+
     updater = Updater(TOKEN)
 
-    dp = updater.dispatcher
+    dispatcher = updater.dispatcher
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("set", set_rut))
-    dp.add_handler(CommandHandler("get", get_by_rut))
-    dp.add_handler(CommandHandler("debug", debug))
-    dp.add_handler(CommandHandler("help", help))
+    bot.add_handlers(dispatcher)
 
-    dp.add_handler(CommandHandler("subscribe", subscribe))
-    dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
-
-    dp.add_handler(MessageHandler(Filters.text, msg))
-
-    dp.add_error_handler(error)
     updater.start_webhook(listen="0.0.0.0", port=443,
                           url_path="/bot-valevista")
-    loop(updater)
+    bot.loop(updater)
+
 
 if __name__ == "__main__":
     main()

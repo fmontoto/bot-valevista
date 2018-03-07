@@ -1,12 +1,19 @@
 language: python
 python:
-    - "3.5"
-    - "nightly"
+    - "3.6"
+    # pylint does not recognize docstrings in python 3.7, re-enable when fixed.
+    # https://github.com/PyCQA/pylint/issues/1722
+    # - "3.7-dev"
+    # - "nightly"
 
 install:
     - "pip install -r requirements.txt"
-    - "pip install pep8"
+    - "pip install mypy"
+    - "pip install pycodestyle"
+    - "pip install pylint"
 
 script:
-    - "python -m pep8 */*.py"
+    - "mypy --ignore-missing-imports src/*\\.py"
+    - "python -m pycodestyle src"
     - "python -m unittest discover -p *_test.py -v"
+    - "pylint src"
