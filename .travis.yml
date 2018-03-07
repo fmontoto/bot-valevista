@@ -1,8 +1,10 @@
 language: python
 python:
     - "3.6"
-    - "3.7-dev"
-    - "nightly"
+    # pylint does not recognize docstrings in python 3.7, re-enable when fixed.
+    # https://github.com/PyCQA/pylint/issues/1722
+    # - "3.7-dev"
+    # - "nightly"
 
 install:
     - "pip install -r requirements.txt"
