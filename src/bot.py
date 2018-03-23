@@ -274,8 +274,9 @@ class ValeVistaBot(object):
                     partial(updater.bot.sendMessage, user_chat_id),
                     ValeVistaBot.ReplyWhen.IS_USEFUL_FOR_USER)
         except telegram.error.Unauthorized:
-            logger.debug('USR[%s]; Unauthorized us, unsubscribing...',
-                         user_to_update.telegram_id)
+            logger.debug(
+                    'USR[%s]; CHAT_ID[%s] Unauthorized us, unsubscribing...',
+                    user_to_update.telegram_id, user_chat_id)
             user_conn.unsubscribe(user_to_update.telegram_id, user_chat_id)
 
     def loop(self, updater):
