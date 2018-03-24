@@ -128,6 +128,29 @@ class TestSubscription(TestCase):
         self.assertEqual("%s" % chat_id, self._user.get_chat_id(
                 self._user.get_id(telegram_id)))
 
+    def testGetChatId(self):
+        telegram_id = 23
+        telegram_id2 = 24
+        telegram_id3 = 25
+        chat_id = 33
+        chat_id2 = 34
+        chat_id3 = 35
+
+        self._user.set_rut(telegram_id, self.rut1)
+        self._user.set_rut(telegram_id2, self.rut2)
+        self._user.set_rut(telegram_id3, self.rut3)
+
+        self._user.subscribe(telegram_id, chat_id)
+        self._user.subscribe(telegram_id2, chat_id2)
+        self._user.subscribe(telegram_id3, chat_id3)
+
+        self.assertEqual("%s" % chat_id, self._user.get_chat_id(
+                self._user.get_id(telegram_id)))
+        self.assertEqual("%s" % chat_id2, self._user.get_chat_id(
+                self._user.get_id(telegram_id2)))
+
+        self.assertEqual("%s" % chat_id3, self._user.get_chat_id(
+                self._user.get_id(telegram_id3)))
 
 if __name__ == '__main__':
     unittest.main()

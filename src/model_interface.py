@@ -162,7 +162,7 @@ class User(object):
         """Gets the chat id for the user with 'user_id'."""
         session = self._db_connection.get_session()
         subscribed_user = session.query(models.SubscribedUsers). \
-            filter(user_id == user_id).first()
+            filter(models.SubscribedUsers.user_id == user_id).first()
         if subscribed_user is None:
             raise ValueError("User isn't subscribed")
         return subscribed_user.chat_id
