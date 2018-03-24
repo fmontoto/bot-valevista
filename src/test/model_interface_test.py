@@ -152,5 +152,6 @@ class TestSubscription(TestCase):
         self.assertEqual("%s" % chat_id3, self._user.get_chat_id(
                 self._user.get_id(telegram_id3)))
 
+
 if __name__ == '__main__':
     unittest.main()
