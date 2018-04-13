@@ -82,9 +82,9 @@ class Rut(object):
 
     @staticmethod
     def looks_like_rut(rut: str):
-        """True if the string looks like a rut without digito verificador."""
+        """True if the string looks like a rut."""
         clean_rut = rut.replace('.', '').strip()
-        reg = re.compile('^[0-9]{7,9}$')
+        reg = re.compile('^[0-9]{7,9}[0-9k]?$')
         match = reg.match(clean_rut)
         if match:
             return True

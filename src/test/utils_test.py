@@ -70,6 +70,8 @@ class TestRutClassMethods(TestCase):
         self.assertTrue(Rut.looks_like_rut('2444333'))
         self.assertTrue(Rut.looks_like_rut('102444333'))
         self.assertFalse(Rut.looks_like_rut('12.444.333-4'))
+        self.assertTrue(Rut.looks_like_rut('124443334'))
+        self.assertTrue(Rut.looks_like_rut('12444333k'))
 
 
 class TestRutObject(TestCase):

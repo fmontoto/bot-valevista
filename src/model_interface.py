@@ -170,9 +170,10 @@ class User(object):
 
 class Cache(object):
     """Access to the cache db table."""
+    _DEFAULT_EXP_TIME = datetime.timedelta(hours=2)
+
     def __init__(self, db_connection: DbConnection,
-                 exp_time: datetime.timedelta = datetime.timedelta(
-                         hours=2)) -> None:
+                 exp_time: datetime.timedelta = _DEFAULT_EXP_TIME) -> None:
         self._exp_time = exp_time
         self._db_connection = db_connection
 

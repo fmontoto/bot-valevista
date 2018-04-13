@@ -39,7 +39,7 @@ def dummyCb(*args, **kwargs):
 
 def simpleMessage(bot, name: str, user: telegram.User, chat: telegram.Chat,
                   cb_reply=None,
-                  message: Optional[str]=None) -> telegram.Update:
+                  message: Optional[str] = None) -> telegram.Update:
     msg = telegram.Message(get_id(), from_user=user,
                            date=datetime.datetime.now(), chat=chat,
                            text=name,
@@ -77,11 +77,11 @@ class TestBot(TestCase):
         self.stored = recv_str
 
     def simpleCommand(self, name: str, cb_reply=None,
-                      message: Optional[str]=None):
+                      message: Optional[str] = None):
         return simpleMessage(self.bot, '/%s' % name, self.user1, self.chat,
                              cb_reply, message)
 
-    def simpleMessage(self, message: Optional[str]=None,
+    def simpleMessage(self, message: Optional[str] = None,
                       cb_reply=dummyCb):
         msg = telegram.Message(get_id(), from_user=self.user1,
                                date=datetime.datetime.now(), chat=self.chat,
@@ -179,7 +179,7 @@ class TestFunctionalBot(TestCase):
         self.dispatcher.process_update(update)
 
     def simpleCommand(self, name: str, cb_reply=None,
-                      message: Optional[str]=None):
+                      message: Optional[str] = None):
 
         return simpleMessage(self.bot, '/%s' % name, self.user1, self.chat,
                              cb_reply, message)

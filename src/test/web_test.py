@@ -11,7 +11,7 @@ from src import web
 
 
 class WebPageFromFileRetriever(web.WebRetriever):
-    def __init__(self, path: str=''):
+    def __init__(self, path: str = ''):
         self.path = path
 
     def setPath(self, path: str):
