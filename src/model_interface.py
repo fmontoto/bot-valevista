@@ -10,7 +10,7 @@ from src.utils import Rut
 from . import models
 
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger('bot_main_logger')  # pylint: disable=invalid-name
 
 
 class ValeVistaBotException(Exception):

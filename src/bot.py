@@ -29,7 +29,7 @@ from src import utils
 from src import web
 from src.web import ParsingException, Web, WebRetriever
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger('bot_main_logger')  # pylint: disable=invalid-name
 logger.setLevel(logging.DEBUG)
 
 # Rotating file handler, rotates every 4 mondays.

@@ -14,7 +14,7 @@ from src.model_interface import Cache, DbConnection, User
 from src.utils import Rut
 
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger('bot_main_logger')  # pylint: disable=invalid-name
 
 
 class ParsingException(Exception):
