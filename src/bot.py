@@ -193,6 +193,22 @@ class ValeVistaBot(object):
         """Replies with the message received."""
         update.message.reply_text(update.message.text)
 
+    @staticmethod
+    def send_message_retry(send_fx, retries):
+        """Calls send_fx and it retries if it fails due network issues. """
+
+        while True:
+            try:
+                send_fx()
+            except telegram.error.NetworkError:
+                if retries == 0:
+                    logger.exception("Network error, retrying...")
+                    break
+                else:
+                    retries = retries - 1
+                    logger.warning("Network error, retrying.")
+            break
+
     class ReplyWhen(enum.Enum):
         """When to send a message to the user."""
         ALWAYS = 1  # Send a message even if not useful data is found.
@@ -207,6 +223,9 @@ class ValeVistaBot(object):
         send a message to the user only if new and useful information was
         retrieved.
         """
+        def reply(msg):
+            """Wrapper for retrying on network error."""
+            return self.send_message_retry(lambda: reply_fn(msg), 3)
         try:
             web_result = Web(self._db_connection, rut, telegram_id,
                              self._cache, self._web_retriever)
@@ -214,20 +233,20 @@ class ValeVistaBot(object):
         # Expected exception.
         except ParsingException as parsing_exep:
             if reply_when == self.ReplyWhen.ALWAYS:
-                reply_fn(parsing_exep.public_message)
+                reply(parsing_exep.public_message)
             return
         except Exception:  # pylint: disable=broad-except
             logger.exception("Error:")
             if reply_when == self.ReplyWhen.ALWAYS:
-                reply_fn(Messages.INTERNAL_ERROR)
+                reply(Messages.INTERNAL_ERROR)
             return
 
         if reply_when == self.ReplyWhen.ALWAYS:
-            reply_fn(response)
+            reply(response)
         elif reply_when == self.ReplyWhen.IS_USEFUL_FOR_USER:
             if web_result.is_useful_info_for_user():
                 logger.debug('USR[%s]; Useful[%s]', telegram_id, response)
-                reply_fn(response)
+                reply(response)
         else:
             logger.error('Not handled enum: %s', reply_when)
 
