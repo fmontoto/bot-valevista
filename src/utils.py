@@ -6,7 +6,7 @@ import re
 import pytz
 
 
-class Rut(object):
+class Rut():
     """Represents a chilean RUT."""
     def __init__(self, rut: int, digito_verificador: str) -> None:
         self.rut_sin_digito = rut

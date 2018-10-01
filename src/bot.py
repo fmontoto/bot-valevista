@@ -60,7 +60,7 @@ HOURS_TO_UPDATE = 33
 SUBSCRIBED = Queue()  # type: Queue
 
 
-class ValeVistaBot(object):
+class ValeVistaBot():
     """Class with all the telegram handlers for the bot."""
     # Testing purposes.
     username = "valevistabot"

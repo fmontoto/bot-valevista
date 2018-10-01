@@ -30,7 +30,7 @@ class UserDoesNotExistError(ValeVistaBotException):
     pass
 
 
-class DbConnection(object):
+class DbConnection():
     """Connection to the database."""
     def __init__(self, in_memory: bool = False) -> None:
         if in_memory:
@@ -56,7 +56,7 @@ class DbConnection(object):
         return self._session()
 
 
-class User(object):
+class User():
     """Interface to the User table in the database."""
     def __init__(self, db_connection: DbConnection) -> None:
         self._db_connection = db_connection
@@ -168,7 +168,7 @@ class User(object):
         return subscribed_user.chat_id
 
 
-class Cache(object):
+class Cache():
     """Access to the cache db table."""
     _DEFAULT_EXP_TIME = datetime.timedelta(hours=2)
 

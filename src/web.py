@@ -25,7 +25,7 @@ class ParsingException(Exception):
         self.public_message = public_message
 
 
-class Event(object):
+class Event():
     """Object that represents each event for a specific rut."""
     def __init__(self, fecha: str, medio_pago: str, oficina: str,
                  estado: str) -> None:
@@ -119,7 +119,7 @@ class TypeOfWebResult(Enum):
     INTENTE_NUEVAMENTE = 3
 
 
-class WebResult(object):
+class WebResult():
     """Parsed response from the web page."""
     def __init__(
             self, type_result: TypeOfWebResult, events: List[Event]) -> None:
@@ -139,14 +139,14 @@ class WebResult(object):
         type_result = self._type_result
         if type_result == TypeOfWebResult.CLIENTE:
             return Messages.CLIENTE_ERROR
-        elif type_result == TypeOfWebResult.INTENTE_NUEVAMENTE:
+        if type_result == TypeOfWebResult.INTENTE_NUEVAMENTE:
             return Messages.INTENTE_NUEVAMENTE_ERROR
-        elif type_result == TypeOfWebResult.NO_ERROR:
+        if type_result == TypeOfWebResult.NO_ERROR:
             return ''
         raise ValueError('Unknown type of result')
 
 
-class WebRetriever(object):  # pylint: disable=too-few-public-methods
+class WebRetriever():  # pylint: disable=too-few-public-methods
     """Base class for webpage retrievers."""
     def retrieve(self, rut: Rut):
         """Each instance should implement this function.
@@ -210,12 +210,12 @@ class WebPageDownloader(WebRetriever):
 
         response_bytes = req.read()
         charset = (req.headers.get_content_charset()  # type: ignore
-                or req.info().get_content_charset()  # type: ignore
+                   or req.info().get_content_charset()  # type: ignore
                    or 'utf-8')
         return response_bytes.decode(charset)
 
 
-class Parser(object):
+class Parser():
     """Class to parse the bank web page."""
     @classmethod
     def _parse_date(cls, date: str) -> datetime.date:
@@ -300,7 +300,7 @@ class Parser(object):
         return WebResult(TypeOfWebResult.NO_ERROR, events)
 
 
-class Web(object):
+class Web():
     """Class that queries and represents a web response from the bank."""
     def __init__(self, db_connection: DbConnection, rut: Rut,
                  telegram_user_id: int, cache: Cache,

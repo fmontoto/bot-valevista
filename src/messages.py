@@ -2,7 +2,7 @@
 
 
 # pylint: disable=too-few-public-methods
-class Messages(object):
+class Messages():
     """Class to hold most static messages the bot sends to the user."""
     # ####################################### #
     # ###### Command success message. ####### #
