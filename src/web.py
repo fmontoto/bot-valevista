@@ -5,8 +5,7 @@ import datetime
 from enum import Enum
 import logging
 from typing import Dict, List
-import requests
-import subprocess
+import urllib.error
 import urllib.request as pyrequest
 
 import bs4
@@ -157,156 +156,63 @@ class WebRetriever(object):  # pylint: disable=too-few-public-methods
         raise NotImplementedError()
 
 
-
-class CurlWebPageDownloader(WebRetriever):
-    """Class to download a webpage using curl"""
-
-    HEADERS = {
-        'Connection': 'keep-alive',
-	'Pragma': 'no-cache',
-	'Cache-Control': 'no-cache',
-	'Upgrade-Insecure-Requests': '1',
-	'DNT': '1',
-	'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
-	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-	'Accept-Encoding': 'gzip, deflate',
-	'Accept-Language': 'en-US,en;q=0.9,es-CL;q=0.8,es;q=0.7',
-    }
-
-    URL = 'http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf?canal=BCW&tipo=2&BEN_DIAS=90&rut1=60910000&dv1=1&rut2=%s&dv2=%s&mediopago=99'
-
-
-    def _GetHeaders(self):
-      return ["-H '%s: %s'" % (k, v) for (k, v) in self.HEADERS.items()]
-
-    def _GetFlags(self):
-      return ["--compressed", "-s"]
-
-    def _GetCmd(self, rut: Rut):
-      headers_list = self._GetHeaders()
-      flags_list = self._GetFlags()
-      url = self.URL % (rut.rut_sin_digito, rut.digito_verificador)
-      return ["curl", "curl", url] + headers_list + flags_list
-
-    def retrieve(self, rut: Rut):
-        """Downloads the web page corresponding to 'rut'."""
-
-        cmd = self._GetCmd(rut)
-        print(" ".join(cmd))
-        try:
-          output = subprocess.check_output(cmd)
-        except subprocess.CalledProcessError:
-          logger.exception("Connection error")
-          raise ParsingException(("Error de conexion, (probablemente) "
-                                  "estamos trabajando para solucionarlo."))
-        except Exception:
-          logger.exception("Unexpected retrieve error")
-          raise ParsingException(
-              ("Error inesperado, probablemente estamos trabajando para "
-               "solucionarlo."))
-
-        return output
-
 # pylint: disable=too-few-public-methods
 class WebPageDownloader(WebRetriever):
-    """Class to download a webpage.
-
-    Unfortunately the response from the bank's server is ill formed and requests
-    hangs for minutes, using curl meanwhile.
-    """
+    """Class to download a webpage."""
 
     HEADERS = {
-        'Connection': 'keep-alive',
-	'Pragma': 'no-cache',
-	'Cache-Control': 'no-cache',
-	'Upgrade-Insecure-Requests': '1',
-	'DNT': '1',
-	'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
-	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-	# 'Accept-Encoding': 'gzip, deflate',
-	# requests is not properly handling gzip-ed responses.
-	# Ask the server not to send gzip-ed data.
-	'Accept-Encoding': 'identity',
-	'Accept-Language': 'en-US,en;q=0.9,es-CL;q=0.8,es;q=0.7',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'Upgrade-Insecure-Requests': '1',
+            'DNT': '1',
+            'User-Agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) '
+                           'AppleWebKit/537.36 (KHTML, like Gecko) '
+                           'Chrome/68.0.3440.106 Safari/537.36'),
+            'Accept': ('text/html,application/xhtml+xml,application/xml;q=0.9,'
+                       'image/webp,image/apng,*/*;q=0.8'),
+            # urllib is not properly handling gzip-ed responses.
+            # Ask the server not to send gzip-ed data.
+            # 'Accept-Encoding': 'gzip, deflate',
+            'Accept-Encoding': 'identity',
+            'Accept-Language': 'en-US,en;q=0.9,es-CL;q=0.8,es;q=0.7',
     }
 
     PARAMS = (
-        ('canal', 'BCW'),
-        ('tipo', '2'),
-        ('BEN_DIAS', '90'),
-        ('rut1', '60910000'),
-        ('dv1', '1'),
-        ('mediopago', '99'),
+            ('canal', 'BCW'),
+            ('tipo', '2'),
+            ('BEN_DIAS', '90'),
+            ('rut1', '60910000'),
+            ('dv1', '1'),
+            ('mediopago', '99'),
     )
+
     URL = 'http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf'
 
-    def retrieve(self, rut: Rut):
+    def retrieve(self, rut: Rut) -> str:
         """Downloads the web page corresponding to 'rut'."""
-        params = self.PARAMS + ( ('rut2', rut.rut_sin_digito)
-                               , ('dv2', rut.digito_verificador)
-                               )
+
+        params = self.PARAMS + (('rut2', str(rut.rut_sin_digito)),
+                                ('dv2', rut.digito_verificador))
         parameters = ["%s=%s" % (t[0], t[1]) for t in params]
         url = self.URL + "?" + "&".join(parameters)
         try:
-            req = pyrequest.urlopen(pyrequest.Request(url, headers=self.HEADERS))
+            req = pyrequest.urlopen(pyrequest.Request(url,
+                                                      headers=self.HEADERS))
+        except urllib.error.URLError:
+            logger.exception("Connection error")
+            raise ParsingException(("Error de conexion, (probablemente) "
+                                    "estamos trabajando para solucionarlo."))
         except Exception:
-            logger.exception("Connection error")
+            logger.exception("Unexpected error at retrieve")
             raise ParsingException(("Error de conexion, (probablemente) "
                                     "estamos trabajando para solucionarlo."))
+
         response_bytes = req.read()
-        return response_bytes.decode('utf-8')
-
-
-# pylint: disable=too-few-public-methods
-class RequestsWebPageDownloader(WebRetriever):
-    """Class to download a webpage.
-
-    Unfortunately the response from the bank's server is ill formed and requests
-    hangs for minutes, using curl meanwhile.
-    """
-
-    HEADERS = {
-        'Connection': 'keep-alive',
-	'Pragma': 'no-cache',
-	'Cache-Control': 'no-cache',
-	'Upgrade-Insecure-Requests': '1',
-	'DNT': '1',
-	'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36',
-	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-	# 'Accept-Encoding': 'gzip, deflate',
-	# requests is not properly handling gzip-ed responses.
-	# Ask the server not to send gzip-ed data.
-	'Accept-Encoding': 'identity',
-	'Accept-Language': 'en-US,en;q=0.9,es-CL;q=0.8,es;q=0.7',
-    }
-
-    PARAMS = (
-        ('canal', 'BCW'),
-        ('tipo', '2'),
-        ('BEN_DIAS', '90'),
-        ('rut1', '60910000'),
-        ('dv1', '1'),
-        ('mediopago', '99'),
-    )
-    URL = 'http://www.empresas.bancochile.cl/cgi-bin/cgi_cpf'
-
-    def retrieve(self, rut: Rut):
-        """Downloads the web page corresponding to 'rut'."""
-        params = self.PARAMS + ( ('rut2', rut.rut_sin_digito)
-                               , ('dv2', rut.digito_verificador)
-                               )
-        try:
-            req =requests.get(self.URL, headers=self.HEADERS, params=params)
-        except requests.exceptions.RequestException:
-            logger.exception("Connection error")
-            raise ParsingException(("Error de conexion, (probablemente) "
-                                    "estamos trabajando para solucionarlo."))
-        if req.status_code != 200:
-            logger.warning("Couldn't get the page, error %s:%s",
-                           req.status_code, req.reason)
-            raise ParsingException(("Error de conexion, (probablemente) "
-                                    "estamos trabajando para solucionarlo."))
-        return req.text
+        charset = (req.headers.get_content_charset()  # type: ignore
+                or req.info().get_content_charset()  # type: ignore
+                   or 'utf-8')
+        return response_bytes.decode(charset)
 
 
 class Parser(object):
