@@ -5,3 +5,8 @@ __pycache__/
 idea/
 *_cache/
 *.sqlite
+*.sqlite
+*.sqlite.*
+.env
+log/
+run_docker.sh
