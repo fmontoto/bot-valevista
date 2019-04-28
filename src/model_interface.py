@@ -22,12 +22,10 @@ class ValeVistaBotException(Exception):
 
 class UserBadUseError(ValeVistaBotException):
     """User trying to do an invalid operation."""
-    pass
 
 
 class UserDoesNotExistError(ValeVistaBotException):
     """User not found in the DB."""
-    pass
 
 
 class DbConnection():
